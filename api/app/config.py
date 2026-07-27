@@ -1,0 +1,49 @@
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="ARCHESHQ_", env_file=".env", extra="ignore")
+
+    env: str = "dev"
+
+    database_url: str = "postgresql+asyncpg://archeshq:archeshq@localhost:5432/archeshq"
+
+    # OIDC (human auth). Dev default points at the self-hosted Keycloak
+    # brought up by infra/docker-compose.yml -- see IMPLEMENTATION_PLAN §1.2:
+    # "if no IdP is chosen yet, use a self-hosted option... so Phase 1 isn't
+    # blocked on an external vendor decision."
+    oidc_issuer: str = "http://localhost:8080/realms/archeshq"
+    oidc_client_id: str = "archeshq-api"
+    oidc_client_secret: str = "dev-secret-change-me"
+    oidc_redirect_uri: str = "http://localhost:5173/auth/callback"
+
+    # Session JWT issued by the API after OIDC login, stored in an httpOnly cookie.
+    session_secret_key: str = "dev-only-change-me-in-every-real-deployment"
+    session_algorithm: str = "HS256"
+    session_ttl_seconds: int = 60 * 60 * 8
+
+    # Object storage (S3-compatible; MinIO in local dev).
+    s3_endpoint_url: str = "http://localhost:9000"
+    s3_access_key: str = "archeshq"
+    s3_secret_key: str = "archeshq-dev-secret"
+    s3_bucket: str = "archeshq"
+    s3_region: str = "us-east-1"
+
+    # Redis (arq background jobs).
+    redis_url: str = "redis://localhost:6379/0"
+
+    # Presence / heartbeat.
+    heartbeat_interval_s: int = 30
+    heartbeat_missed_threshold: int = 2  # offline after N missed intervals
+
+    # Pairing tokens.
+    pairing_token_ttl_seconds: int = 15 * 60
+
+    cors_allow_origins: list[str] = ["http://localhost:5173"]
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
