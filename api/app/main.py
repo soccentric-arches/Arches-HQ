@@ -1,13 +1,26 @@
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import audit_log, auth, devices, users
+from app.routers import audit_log, auth, devices, users, ws
+from app.services.device_status_broadcast import poll_loop
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    stop_event = asyncio.Event()
+    poll_task = asyncio.ensure_future(poll_loop(stop_event))
+    yield
+    stop_event.set()
+    poll_task.cancel()
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Arches-HQ API", version="0.1.0")
+    app = FastAPI(title="Arches-HQ API", version="0.1.0", lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,
@@ -21,6 +34,7 @@ def create_app() -> FastAPI:
     app.include_router(devices.router)
     app.include_router(users.router)
     app.include_router(audit_log.router)
+    app.include_router(ws.router)
 
     @app.get("/healthz", tags=["meta"])
     async def healthz():

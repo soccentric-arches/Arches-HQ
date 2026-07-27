@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, UTC
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -5,12 +6,15 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_role
+from app.config import get_settings
 from app.db.deps import get_db
 from app.models.device import Device
-from app.models.enums import UserRole
+from app.models.device_credential import DeviceCredential
+from app.models.enums import CredentialKind, PairingState, UserRole
 from app.schemas.common import Page
 from app.schemas.device import DeviceCreate, DeviceCreateOut, DeviceListOut, DeviceOut
 from app.services import audit
+from app.services.credentials import generate_token, hash_token
 from app.services.tenant_repo import TenantContext, TenantRepo
 
 router = APIRouter(prefix="/devices", tags=["devices"])
@@ -66,9 +70,86 @@ async def create_device(
     device = repo.stamp_tenant(Device(name=body.name))
     db.add(device)
     await db.flush()
+
+    settings = get_settings()
+    raw_token = generate_token()
+    pairing_expires_at = datetime.now(UTC) + timedelta(seconds=settings.pairing_token_ttl_seconds)
+    db.add(
+        DeviceCredential(
+            device_id=device.id,
+            kind=CredentialKind.pairing,
+            token_hash=hash_token(raw_token),
+            expires_at=pairing_expires_at,
+        )
+    )
+
     await audit.record(
         db, ctx, "device.create", target_device_id=device.id, payload={"name": device.name}
     )
     await db.commit()
     await db.refresh(device)
-    return DeviceCreateOut(device=DeviceOut.model_validate(device), pairing_token=None)
+    return DeviceCreateOut(device=DeviceOut.model_validate(device), pairing_token=raw_token)
+
+
+@router.post("/{device_id}/credential/rotate", response_model=DeviceCreateOut)
+async def rotate_credential(
+    device_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.admin)),
+):
+    """Issue a fresh single-use pairing token, revoking any prior credential.
+
+    The device must re-pair with the new token; its existing live gateway
+    connection (if any) is torn down because the gateway checks credential
+    validity on every frame, not just at connect time (IMPLEMENTATION_PLAN §2.2).
+    """
+    repo = TenantRepo(db, ctx)
+    device = await repo.get_or_404(Device, device_id)
+    if device is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "device not found")
+
+    now = datetime.now(UTC)
+    await db.execute(
+        DeviceCredential.__table__.update()
+        .where(DeviceCredential.device_id == device.id, DeviceCredential.revoked_at.is_(None))
+        .values(revoked_at=now)
+    )
+
+    settings = get_settings()
+    raw_token = generate_token()
+    db.add(
+        DeviceCredential(
+            device_id=device.id,
+            kind=CredentialKind.pairing,
+            token_hash=hash_token(raw_token),
+            expires_at=now + timedelta(seconds=settings.pairing_token_ttl_seconds),
+        )
+    )
+    device.pairing_state = PairingState.pending
+    await audit.record(db, ctx, "device.credential.rotate", target_device_id=device.id)
+    await db.commit()
+    await db.refresh(device)
+    return DeviceCreateOut(device=DeviceOut.model_validate(device), pairing_token=raw_token)
+
+
+@router.post("/{device_id}/credential/revoke")
+async def revoke_credential(
+    device_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.admin)),
+):
+    repo = TenantRepo(db, ctx)
+    device = await repo.get_or_404(Device, device_id)
+    if device is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "device not found")
+
+    now = datetime.now(UTC)
+    await db.execute(
+        DeviceCredential.__table__.update()
+        .where(DeviceCredential.device_id == device.id, DeviceCredential.revoked_at.is_(None))
+        .values(revoked_at=now)
+    )
+    device.pairing_state = PairingState.revoked
+    await audit.record(db, ctx, "device.credential.revoke", target_device_id=device.id)
+    await db.commit()
+    return {"ok": True}

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { api, ApiError } from '@/lib/api'
+import { connectDeviceStatusSocket } from '@/lib/deviceStatusSocket'
 import type { Device } from '@/lib/types'
 import { useAuthStore } from '@/stores/auth'
 import Badge from '@/components/ui/Badge.vue'
@@ -59,7 +60,20 @@ function closeAddDialog() {
   createError.value = ''
 }
 
-onMounted(load)
+let closeSocket: (() => void) | null = null
+
+onMounted(() => {
+  load()
+  closeSocket = connectDeviceStatusSocket((event) => {
+    const device = devices.value.find((d) => d.id === event.device_id)
+    if (device) {
+      device.online = event.online
+      device.last_seen_at = event.last_seen_at
+    }
+  })
+})
+
+onUnmounted(() => closeSocket?.())
 </script>
 
 <template>
