@@ -24,6 +24,12 @@ const router = createRouter({
       props: true,
     },
     {
+      path: '/alarm-rules',
+      name: 'alarm-rules',
+      component: () => import('@/views/AlarmRulesView.vue'),
+      meta: { requiresRole: 'viewer' },
+    },
+    {
       path: '/users',
       name: 'users',
       component: () => import('@/views/UsersView.vue'),
@@ -41,7 +47,14 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (auth.status === 'unknown') {
-    await auth.fetchMe()
+    try {
+      await auth.fetchMe()
+    } catch {
+      // Transient network/API failure -- treat as unauthenticated rather
+      // than throwing out of the guard, which would otherwise wedge the
+      // router (VUE_ROUTER_R0011) for the rest of the session.
+      auth.status = 'unauthenticated'
+    }
   }
 
   if (to.meta.public) {

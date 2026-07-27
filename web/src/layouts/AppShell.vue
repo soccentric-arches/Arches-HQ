@@ -22,6 +22,9 @@ async function handleLogout() {
             <RouterLink to="/" class="hover:text-foreground" active-class="text-foreground font-medium"
               >Devices</RouterLink
             >
+            <RouterLink to="/alarm-rules" class="hover:text-foreground" active-class="text-foreground font-medium"
+              >Alarm Rules</RouterLink
+            >
             <RouterLink
               v-if="auth.hasRole('admin')"
               to="/users"

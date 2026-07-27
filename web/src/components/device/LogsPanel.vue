@@ -9,12 +9,19 @@ import Table from '@/components/ui/Table.vue'
 const props = defineProps<{ deviceId: string }>()
 const bundles = ref<LogBundle[]>([])
 const loading = ref(true)
+const error = ref('')
 
 async function load() {
   loading.value = true
-  const res = await api.logs.list(props.deviceId)
-  bundles.value = res.items
-  loading.value = false
+  error.value = ''
+  try {
+    const res = await api.logs.list(props.deviceId)
+    bundles.value = res.items
+  } catch {
+    error.value = 'Could not load log bundles.'
+  } finally {
+    loading.value = false
+  }
 }
 
 async function download(id: string) {
@@ -34,6 +41,7 @@ onMounted(load)
 
 <template>
   <div v-if="loading" class="text-sm text-muted-foreground">Loading…</div>
+  <Card v-else-if="error" class="p-6 text-sm text-danger">{{ error }}</Card>
   <Card v-else-if="bundles.length === 0" class="p-6 text-sm text-muted-foreground">
     No log bundles uploaded yet.
   </Card>

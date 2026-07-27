@@ -18,9 +18,8 @@ from app.models.fault import Fault
 from app.models.log_bundle import LogBundle
 from app.models.telemetry import TelemetrySample
 from app.models.update import DeviceRolloutStatus, RolloutStatus, UpdateRollout, UpdateRolloutDevice
+from app.services.storage import new_object_id, object_key, presigned_upload_url
 from archeshq.agent_pb2 import FaultEvent, Location, LogUploadRequest, TelemetryBatch
-
-from gateway.storage import new_object_id, object_key, presigned_upload_url
 
 logger = logging.getLogger("gateway.handlers")
 

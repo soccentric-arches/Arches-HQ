@@ -13,6 +13,7 @@ const auth = useAuthStore()
 const faults = ref<Fault[]>([])
 const alarms = ref<Alarm[]>([])
 const loading = ref(true)
+const error = ref('')
 
 function severityTone(sev: string) {
   return sev === 'critical' ? 'danger' : sev === 'warn' ? 'warning' : 'neutral'
@@ -23,13 +24,19 @@ function alarmTone(state: string) {
 
 async function load() {
   loading.value = true
-  const [f, a] = await Promise.all([
-    api.faults.list(props.deviceId),
-    api.alarms.listForDevice(props.deviceId),
-  ])
-  faults.value = f.items
-  alarms.value = a.items
-  loading.value = false
+  error.value = ''
+  try {
+    const [f, a] = await Promise.all([
+      api.faults.list(props.deviceId),
+      api.alarms.listForDevice(props.deviceId),
+    ])
+    faults.value = f.items
+    alarms.value = a.items
+  } catch {
+    error.value = 'Could not load faults and alarms.'
+  } finally {
+    loading.value = false
+  }
 }
 
 async function acknowledge(id: string) {
@@ -47,6 +54,7 @@ onMounted(load)
 
 <template>
   <div v-if="loading" class="text-sm text-muted-foreground">Loading…</div>
+  <div v-else-if="error" class="text-sm text-danger">{{ error }}</div>
   <div v-else class="grid grid-cols-1 gap-6 lg:grid-cols-2">
     <div>
       <h3 class="mb-2 text-sm font-semibold">Alarms</h3>

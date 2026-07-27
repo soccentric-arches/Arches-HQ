@@ -83,6 +83,14 @@ export interface AlarmListResponse {
   page: Page
 }
 
+export interface AlarmRule {
+  id: string
+  name: string
+  condition: Record<string, unknown>
+  notify_channels: Record<string, unknown>
+  enabled: boolean
+}
+
 export interface LogBundle {
   id: string
   device_id: string

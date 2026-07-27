@@ -1,6 +1,8 @@
-"""Signed-URL issuance for device log/backup uploads, and the REST API's
-log/backup downloads. S3-compatible (real S3 or local MinIO) per
-ARCHITECTURE.md §2 -- large blobs never touch the gRPC stream or Postgres.
+"""Signed-URL issuance for device log/backup uploads (agent-gateway) and
+the REST API's log/backup downloads. S3-compatible (real S3 or local MinIO)
+per ARCHITECTURE.md §2 -- large blobs never touch the gRPC stream or
+Postgres. Single source of truth shared by both services (same reasoning
+as app/services/credentials.py).
 """
 
 import uuid

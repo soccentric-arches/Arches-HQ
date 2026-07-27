@@ -19,8 +19,12 @@ const message = ref('')
 const confirmKind = ref<'reset' | 'disable' | null>(null)
 
 async function loadBackups() {
-  const res = await api.backups.list(props.device.id)
-  backups.value = res.items
+  try {
+    const res = await api.backups.list(props.device.id)
+    backups.value = res.items
+  } catch {
+    message.value = 'Could not load backups.'
+  }
 }
 
 async function takeBackup() {
