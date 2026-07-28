@@ -57,10 +57,10 @@ class OIDCClient:
                 self._jwks_fetched_at = time.monotonic()
         return self._jwks
 
-    def authorization_url(self, state: str) -> str:
+    def authorization_url(self, state: str, redirect_uri: str) -> str:
         client = AsyncOAuth2Client(
             client_id=self.settings.oidc_client_id,
-            redirect_uri=self.settings.oidc_redirect_uri,
+            redirect_uri=redirect_uri,
             scope="openid email profile",
         )
         # authlib builds the URL synchronously against a known authorize
@@ -69,12 +69,15 @@ class OIDCClient:
         url, _ = client.create_authorization_url(authorize_endpoint, state=state)
         return url
 
-    async def exchange_code(self, code: str) -> dict:
+    async def exchange_code(self, code: str, redirect_uri: str) -> dict:
+        # redirect_uri must exactly match what was sent to authorization_url
+        # -- OAuth2 requires it (RFC 6749 §4.1.3), so callers must pass the
+        # same value both times (see app/routers/auth.py's _redirect_uri()).
         disco = await self._discover()
         client = AsyncOAuth2Client(
             client_id=self.settings.oidc_client_id,
             client_secret=self.settings.oidc_client_secret,
-            redirect_uri=self.settings.oidc_redirect_uri,
+            redirect_uri=redirect_uri,
         )
         token = await client.fetch_token(
             disco["token_endpoint"], code=code, grant_type="authorization_code"

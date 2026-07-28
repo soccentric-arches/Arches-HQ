@@ -14,10 +14,15 @@ class Settings(BaseSettings):
     # brought up by infra/docker-compose.yml -- see IMPLEMENTATION_PLAN §1.2:
     # "if no IdP is chosen yet, use a self-hosted option... so Phase 1 isn't
     # blocked on an external vendor decision."
-    oidc_issuer: str = "http://localhost:8080/realms/archeshq"
+    oidc_issuer: str = "http://localhost:8081/realms/archeshq"
     oidc_client_id: str = "archeshq-api"
     oidc_client_secret: str = "dev-secret-change-me"
-    oidc_redirect_uri: str = "http://localhost:5173/auth/callback"
+    # No static oidc_redirect_uri: it's derived per-request from the
+    # browser's actual origin (X-Forwarded-Host, forwarded by Vite's dev
+    # proxy) in app/routers/auth.py -- a fixed value breaks the moment the
+    # app is reachable at more than one hostname (localhost, LAN IP, mDNS
+    # name), which is exactly what the LAN-access setup needs.
+    oidc_redirect_fallback_host: str = "localhost:5173"
 
     # Session JWT issued by the API after OIDC login, stored in an httpOnly cookie.
     session_secret_key: str = "dev-only-change-me-in-every-real-deployment"

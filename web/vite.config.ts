@@ -23,6 +23,11 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        // Forwards X-Forwarded-Host/-Proto/-For so the API can see which
+        // origin the browser actually used (localhost, LAN IP, or an mDNS
+        // hostname) -- needed to build a matching OIDC redirect_uri per
+        // request instead of hardcoding one (see app/routers/auth.py).
+        xfwd: true,
         ws: true,
         rewrite: (p) => p.replace(/^\/api/, ''),
       },

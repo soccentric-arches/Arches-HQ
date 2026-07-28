@@ -22,10 +22,32 @@ def get_oidc_client() -> OIDCClient:
     return OIDCClient()
 
 
+def _redirect_uri(request: Request) -> str:
+    """The browser's own origin, not this API process's -- Vite's dev
+    proxy forwards it via X-Forwarded-Host/-Proto (web/vite.config.ts's
+    xfwd: true) since this request actually arrives from the proxy on
+    localhost, not from the browser directly. Falls back to
+    oidc_redirect_fallback_host for non-proxied deployments (a single
+    fixed public hostname, where this header simply won't be present).
+
+    Must return the SAME value on both /auth/login and /auth/callback for
+    a given browser session -- it does, because both read it off the same
+    browser-forwarded origin, and by the time /auth/callback runs the
+    browser is (by definition) already on that origin.
+    """
+    host = request.headers.get("x-forwarded-host") or request.headers.get(
+        "host", get_settings().oidc_redirect_fallback_host
+    )
+    scheme = request.headers.get("x-forwarded-proto", "http")
+    return f"{scheme}://{host}/auth/callback"
+
+
 @router.get("/login")
-async def login(response: Response, oidc: OIDCClient = Depends(get_oidc_client)):
+async def login(
+    request: Request, response: Response, oidc: OIDCClient = Depends(get_oidc_client)
+):
     state = secrets.token_urlsafe(24)
-    url = oidc.authorization_url(state)
+    url = oidc.authorization_url(state, _redirect_uri(request))
     response.set_cookie(_STATE_COOKIE, state, httponly=True, samesite="lax", max_age=600)
     return {"authorization_url": url}
 
@@ -44,7 +66,7 @@ async def callback(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid oidc state")
 
     try:
-        tokens = await oidc.exchange_code(code)
+        tokens = await oidc.exchange_code(code, _redirect_uri(request))
         identity = await oidc.verify_id_token(tokens["id_token"], tokens["access_token"])
     except OIDCError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc

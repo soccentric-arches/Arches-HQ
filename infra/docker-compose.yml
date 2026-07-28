@@ -51,7 +51,17 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
     ports: ["8081:8080"]  # host 8081 -- 8080 is commonly taken by other local services
-    volumes: ["./keycloak/realm-archeshq.json:/opt/keycloak/data/import/realm-archeshq.json:ro"]
+    volumes:
+      - "./keycloak/realm-archeshq.json:/opt/keycloak/data/import/realm-archeshq.json:ro"
+      # Persists Keycloak's embedded H2 DB (users, sessions, client config)
+      # across container recreation. Without this, Keycloak assigns a new
+      # random user ID on every restart, while Postgres's `User.auth_subject_id`
+      # (set on first login) keeps pointing at the old one -- next login then
+      # fails "no invited user found" even though the email is right, because
+      # the app's re-invite fallback only matches users with no linked
+      # subject yet. `--import-realm` skips re-import if the realm already
+      # exists, so this doesn't fight the volume.
+      - "archeshq-keycloak-data:/opt/keycloak/data"
     # No container-level healthcheck -- Keycloak's minimal image doesn't
     # reliably have curl/wget. The Makefile polls the realm's well-known
     # config endpoint from the host instead (see `make db-up`).
@@ -59,6 +69,7 @@ services:
 volumes:
   archeshq-pg-data:
   archeshq-minio-data:
+  archeshq-keycloak-data:
 
 # Dev login: seeded realm user admin@example.com / devpassword (see
 # infra/keycloak/realm-archeshq.json). `make seed EMAIL=admin@example.com`

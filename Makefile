@@ -84,7 +84,6 @@ run: db-up migrate
 	@echo "starting api, agent-gateway, web..."
 	@(cd api && exec env ARCHESHQ_DATABASE_URL=$(DATABASE_URL) ARCHESHQ_S3_ENDPOINT_URL=$(S3_ENDPOINT_URL) \
 		ARCHESHQ_OIDC_ISSUER=http://$$(hostname -I | awk '{print $$1}'):8081/realms/archeshq \
-		ARCHESHQ_OIDC_REDIRECT_URI=http://$$(hostname -I | awk '{print $$1}'):5173/auth/callback \
 		nohup $(PY) -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > $(RUN_DIR)/api.log 2>&1) & echo $$! > $(RUN_DIR)/api.pid
 	@(cd agent-gateway && exec env ARCHESHQ_DATABASE_URL=$(DATABASE_URL) ARCHESHQ_S3_ENDPOINT_URL=$(S3_ENDPOINT_URL) \
 		nohup $(PY) -m gateway.server > $(RUN_DIR)/gateway.log 2>&1) & echo $$! > $(RUN_DIR)/gateway.pid
