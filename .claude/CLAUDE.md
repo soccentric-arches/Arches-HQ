@@ -1,9 +1,9 @@
 # Arches-HQ
 
-**Remote:** `git@github.com:SiliconCentric/Arches-HQ.git` (not yet created — see PLAN.md §0)
+**Remote:** `git@github.com:SiliconCentric/Arches-HQ.git` (origin configured; confirm reachability with `git ls-remote` before scoping a loop — branch-push fails late otherwise)
 **Parent project:** [Arches](../CLAUDE.md) (target hardware: **NVIDIA Jetson** (Tegra family, L4T/JetPack OS) application processor with an **STM32** real-time co-processor.)
 **Leaf type:** `<Project>-HQ`
-**Status:** PLANNING — design docs only, no code yet
+**Status:** REAL — actively built out (corrected 2026-07-28, was mislabeled PLANNING)
 
 Arches-HQ is the **cloud fleet-management app** for Arches devices: a multi-tenant
 web service (API + database + browser UI) that lets an operator view every
@@ -11,8 +11,8 @@ paired device's status remotely and run operations against it (provisioning,
 updates, backup/restore, disable, factory reset, location tracking).
 
 It is **not** the same thing as `Arches-Configuration`'s on-device WebConfig UI
-(local, single-device, no cloud) or the `Arches-Dashboard` stub (unstarted,
-scope undecided). HQ is the first leaf that is fleet-wide and cloud-hosted
+(local, single-device, no cloud) or `Arches-Dashboard` (the standalone
+browser dashboard). HQ is the first leaf that is fleet-wide and cloud-hosted
 rather than device-resident.
 
 - Design docs: `PLAN.md` (roadmap, phases, decisions), `ARCHITECTURE.md`
