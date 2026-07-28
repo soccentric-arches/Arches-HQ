@@ -81,15 +81,16 @@ run: db-up migrate
 	@mkdir -p $(RUN_DIR)
 	@echo "starting api, agent-gateway, web..."
 	@(cd api && exec env ARCHESHQ_DATABASE_URL=$(DATABASE_URL) ARCHESHQ_S3_ENDPOINT_URL=$(S3_ENDPOINT_URL) \
-		nohup $(PY) -m uvicorn app.main:app --port 8000 > $(RUN_DIR)/api.log 2>&1) & echo $$! > $(RUN_DIR)/api.pid
+		nohup $(PY) -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > $(RUN_DIR)/api.log 2>&1) & echo $$! > $(RUN_DIR)/api.pid
 	@(cd agent-gateway && exec env ARCHESHQ_DATABASE_URL=$(DATABASE_URL) ARCHESHQ_S3_ENDPOINT_URL=$(S3_ENDPOINT_URL) \
 		nohup $(PY) -m gateway.server > $(RUN_DIR)/gateway.log 2>&1) & echo $$! > $(RUN_DIR)/gateway.pid
-	@(cd web && exec nohup ./node_modules/.bin/vite --port 5173 > $(RUN_DIR)/web.log 2>&1) & echo $$! > $(RUN_DIR)/web.pid
+	@(cd web && exec nohup ./node_modules/.bin/vite --host 0.0.0.0 --port 5173 > $(RUN_DIR)/web.log 2>&1) & echo $$! > $(RUN_DIR)/web.pid
 	@sleep 1
-	@echo "api:      http://localhost:8000"
-	@echo "web:      http://localhost:5173"
-	@echo "gateway:  localhost:50051 (gRPC)"
-	@echo "logs:     make logs   |   stop:  make stop"
+	@LAN_IP=$$(hostname -I 2>/dev/null | awk '{print $$1}'); \
+	echo "api:      http://localhost:8000   (LAN: http://$$LAN_IP:8000)"; \
+	echo "web:      http://localhost:5173   (LAN: http://$$LAN_IP:5173)"; \
+	echo "gateway:  localhost:50051 (gRPC)  (LAN: $$LAN_IP:50051 -- already binds all interfaces)"; \
+	echo "logs:     make logs   |   stop:  make stop"
 
 stop:
 	-@for f in $(RUN_DIR)/*.pid; do [ -f "$$f" ] && kill $$(cat "$$f") 2>/dev/null; rm -f "$$f"; done
