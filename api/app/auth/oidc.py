@@ -81,7 +81,7 @@ class OIDCClient:
         )
         return token
 
-    async def verify_id_token(self, id_token: str) -> OIDCIdentity:
+    async def verify_id_token(self, id_token: str, access_token: str) -> OIDCIdentity:
         jwks = await self._get_jwks()
         try:
             claims = jose_jwt.decode(
@@ -90,6 +90,11 @@ class OIDCClient:
                 algorithms=["RS256"],
                 audience=self.settings.oidc_client_id,
                 issuer=self.settings.oidc_issuer,
+                # Keycloak's ID tokens carry at_hash (binds the ID token to
+                # the access_token issued alongside it, OIDC core §3.1.3.6)
+                # -- jose requires the access_token to verify it, else it
+                # raises rather than silently skipping the check.
+                access_token=access_token,
             )
         except Exception as exc:  # noqa: BLE001 - surfaced as a uniform auth failure
             raise OIDCError(f"invalid id_token: {exc}") from exc

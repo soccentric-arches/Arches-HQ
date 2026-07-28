@@ -60,7 +60,9 @@ db-up:
 	@until docker exec $$($(COMPOSE) ps -q minio) mc ready local >/dev/null 2>&1; do sleep 1; done
 	@docker run --rm --network archeshq_default -e MC_HOST_local=http://archeshq:archeshq-dev-secret@minio:9000 \
 		minio/mc mb -p local/archeshq >/dev/null 2>&1 || true
-	@echo "postgres, minio (bucket: archeshq), redis ready"
+	@echo "waiting for keycloak (can take ~30s on first boot)..."
+	@until curl -sf http://localhost:8081/realms/archeshq/.well-known/openid-configuration >/dev/null 2>&1; do sleep 2; done
+	@echo "postgres, minio (bucket: archeshq), redis, keycloak (realm: archeshq) ready"
 
 db-down:
 	$(COMPOSE) down
@@ -81,15 +83,25 @@ run: db-up migrate
 	@mkdir -p $(RUN_DIR)
 	@echo "starting api, agent-gateway, web..."
 	@(cd api && exec env ARCHESHQ_DATABASE_URL=$(DATABASE_URL) ARCHESHQ_S3_ENDPOINT_URL=$(S3_ENDPOINT_URL) \
+		ARCHESHQ_OIDC_ISSUER=http://$$(hostname -I | awk '{print $$1}'):8081/realms/archeshq \
+		ARCHESHQ_OIDC_REDIRECT_URI=http://$$(hostname -I | awk '{print $$1}'):5173/auth/callback \
 		nohup $(PY) -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > $(RUN_DIR)/api.log 2>&1) & echo $$! > $(RUN_DIR)/api.pid
 	@(cd agent-gateway && exec env ARCHESHQ_DATABASE_URL=$(DATABASE_URL) ARCHESHQ_S3_ENDPOINT_URL=$(S3_ENDPOINT_URL) \
 		nohup $(PY) -m gateway.server > $(RUN_DIR)/gateway.log 2>&1) & echo $$! > $(RUN_DIR)/gateway.pid
 	@(cd web && exec nohup ./node_modules/.bin/vite --host 0.0.0.0 --port 5173 > $(RUN_DIR)/web.log 2>&1) & echo $$! > $(RUN_DIR)/web.pid
 	@sleep 1
 	@LAN_IP=$$(hostname -I 2>/dev/null | awk '{print $$1}'); \
-	echo "api:      http://localhost:8000   (LAN: http://$$LAN_IP:8000)"; \
-	echo "web:      http://localhost:5173   (LAN: http://$$LAN_IP:5173)"; \
-	echo "gateway:  localhost:50051 (gRPC)  (LAN: $$LAN_IP:50051 -- already binds all interfaces)"; \
+	echo "web:      http://$$LAN_IP:5173   (use this on every device, including this host --"; \
+	echo "                                  login redirects always go to the LAN IP, so mixing"; \
+	echo "                                  it with http://localhost:5173 splits your session"; \
+	echo "                                  cookie across two origins)"; \
+	echo "api:      http://$$LAN_IP:8000"; \
+	echo "keycloak: http://$$LAN_IP:8081/admin  (admin/admin)"; \
+	echo "gateway:  $$LAN_IP:50051 (gRPC)"; \
+	echo ""; \
+	echo "login:    admin@example.com / devpassword"; \
+	echo "          (first time: make seed EMAIL=admin@example.com to pre-invite it as admin)"; \
+	echo ""; \
 	echo "logs:     make logs   |   stop:  make stop"
 
 stop:

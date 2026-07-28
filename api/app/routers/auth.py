@@ -45,7 +45,7 @@ async def callback(
 
     try:
         tokens = await oidc.exchange_code(code)
-        identity = await oidc.verify_id_token(tokens["id_token"])
+        identity = await oidc.verify_id_token(tokens["id_token"], tokens["access_token"])
     except OIDCError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
 

@@ -36,13 +36,32 @@ services:
       timeout: 5s
       retries: 20
 
+  # Self-hosted OIDC provider (IMPLEMENTATION_PLAN §1.2's day-1 default,
+  # so Phase 1 auth isn't blocked on a real vendor IdP choice). Dev-only
+  # settings: sslRequired "none" in the imported realm, KC_HOSTNAME_STRICT
+  # off so it accepts requests via localhost, LAN IP, or a LAN hostname
+  # interchangeably. Never appropriate outside a trusted local network.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+    ports: ["8081:8080"]  # host 8081 -- 8080 is commonly taken by other local services
+    volumes: ["./keycloak/realm-archeshq.json:/opt/keycloak/data/import/realm-archeshq.json:ro"]
+    # No container-level healthcheck -- Keycloak's minimal image doesn't
+    # reliably have curl/wget. The Makefile polls the realm's well-known
+    # config endpoint from the host instead (see `make db-up`).
+
 volumes:
   archeshq-pg-data:
   archeshq-minio-data:
 
-# Not included yet: a self-hosted OIDC provider (IMPLEMENTATION_PLAN §1.2
-# names Keycloak as the day-1 default). Until it's wired up, `make seed`
-# creates a dev admin user directly in Postgres and `POST /auth/login`'s
-# redirect flow has no real IdP behind it -- use scripts/seed_dev.py plus a
-# manually-issued session cookie for local testing (see api/README or
-# IMPLEMENTATION_PLAN.md).
+# Dev login: seeded realm user admin@example.com / devpassword (see
+# infra/keycloak/realm-archeshq.json). `make seed EMAIL=admin@example.com`
+# pre-invites that same email as an admin in the app's Postgres, which is
+# what the api/app/routers/auth.py first-login matching needs to link the
+# two (see IMPLEMENTATION_PLAN §1.2's "single shared deployment" simplification).
