@@ -15,6 +15,9 @@ web/coverage/
 web/*.local
 web/.eslintcache
 
+# make run / make stop
+.run/
+
 # Env / secrets
 .env
 *.env.local

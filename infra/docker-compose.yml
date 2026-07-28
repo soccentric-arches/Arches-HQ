@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: archeshq
+      POSTGRES_PASSWORD: archeshq
+      POSTGRES_DB: archeshq
+    ports: ["5432:5432"]
+    volumes: ["archeshq-pg-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archeshq"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: archeshq
+      MINIO_ROOT_PASSWORD: archeshq-dev-secret
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["archeshq-minio-data:/data"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  archeshq-pg-data:
+  archeshq-minio-data:
+
+# Not included yet: a self-hosted OIDC provider (IMPLEMENTATION_PLAN §1.2
+# names Keycloak as the day-1 default). Until it's wired up, `make seed`
+# creates a dev admin user directly in Postgres and `POST /auth/login`'s
+# redirect flow has no real IdP behind it -- use scripts/seed_dev.py plus a
+# manually-issued session cookie for local testing (see api/README or
+# IMPLEMENTATION_PLAN.md).
