@@ -5,6 +5,7 @@ from app.models.device import Device
 from app.models.device_credential import DeviceCredential
 from app.models.fault import Fault
 from app.models.log_bundle import LogBundle
+from app.models.pending_command import PendingCommand
 from app.models.telemetry import TelemetrySample
 from app.models.tenant import Tenant
 from app.models.update import UpdateArtifact, UpdateRollout, UpdateRolloutDevice
@@ -19,6 +20,7 @@ __all__ = [
     "DeviceCredential",
     "Fault",
     "LogBundle",
+    "PendingCommand",
     "TelemetrySample",
     "Tenant",
     "UpdateArtifact",

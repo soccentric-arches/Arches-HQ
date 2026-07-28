@@ -34,3 +34,24 @@ class DeviceCreateOut(BaseModel):
     # Only present in Phase 2+ once pairing-token generation exists; Phase 1
     # creates an inert `pending` record only (IMPLEMENTATION_PLAN §1.3).
     pairing_token: str | None = None
+
+
+class BulkProvisionCreate(BaseModel):
+    names: list[str]
+
+
+class BulkProvisionedDevice(BaseModel):
+    device: DeviceOut
+    pairing_token: str
+
+
+class BulkProvisionOut(BaseModel):
+    items: list[BulkProvisionedDevice]
+
+
+class LocationOut(BaseModel):
+    lat: float | None = None
+    lon: float | None = None
+    accuracy_m: float | None = None
+    source: str | None = None
+    recorded_at: datetime | None = None

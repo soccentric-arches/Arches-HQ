@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, UTC
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -10,14 +10,47 @@ from app.config import get_settings
 from app.db.deps import get_db
 from app.models.device import Device
 from app.models.device_credential import DeviceCredential
-from app.models.enums import CredentialKind, PairingState, UserRole
+from app.models.enums import CommandKind, CredentialKind, PairingState, UserRole
+from app.models.pending_command import PendingCommand
+from app.models.telemetry import TelemetrySample
 from app.schemas.common import Page
-from app.schemas.device import DeviceCreate, DeviceCreateOut, DeviceListOut, DeviceOut
+from app.schemas.device import (
+    BulkProvisionCreate,
+    BulkProvisionOut,
+    DeviceCreate,
+    DeviceCreateOut,
+    DeviceListOut,
+    DeviceOut,
+    LocationOut,
+)
 from app.services import audit
 from app.services.credentials import generate_token, hash_token
+from app.services.device_scope import get_tenant_device_or_404
 from app.services.tenant_repo import TenantContext, TenantRepo
 
 router = APIRouter(prefix="/devices", tags=["devices"])
+
+
+async def _create_device_with_pairing_token(
+    db: AsyncSession, ctx: TenantContext, name: str
+) -> tuple[Device, str]:
+    repo = TenantRepo(db, ctx)
+    device = repo.stamp_tenant(Device(name=name))
+    db.add(device)
+    await db.flush()
+
+    settings = get_settings()
+    raw_token = generate_token()
+    pairing_expires_at = datetime.now(UTC) + timedelta(seconds=settings.pairing_token_ttl_seconds)
+    db.add(
+        DeviceCredential(
+            device_id=device.id,
+            kind=CredentialKind.pairing,
+            token_hash=hash_token(raw_token),
+            expires_at=pairing_expires_at,
+        )
+    )
+    return device, raw_token
 
 
 @router.get("", response_model=DeviceListOut)

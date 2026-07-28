@@ -54,3 +54,10 @@ class DeviceRolloutStatus(str, enum.Enum):
 class LogUploadKind(str, enum.Enum):
     log_bundle = "log_bundle"
     backup = "backup"
+
+
+class CommandKind(str, enum.Enum):
+    take_backup_now = "take_backup_now"
+    restore = "restore"
+    factory_reset = "factory_reset"
+    apply_update = "apply_update"
