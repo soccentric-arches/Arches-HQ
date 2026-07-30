@@ -1,23 +1,34 @@
-# CLAUDE.md - Arches-HQ
+# Arches-HQ
 
-See [project_specs.md](project_specs.md) for what this repo is and how it relates to the rest of the fleet.
+Cloud fleet-management app: API, database and browser UI. An operator sees every paired device's
+status remotely and runs operations against it. The only cloud-hosted leaf.
 
-## Commands
+## How you work here
 
-* API tests: `make test-api`
-* Gateway tests: `make test-gateway`
-* Web tests: `make test-web`
+* Commands: `.claude/commands/` — test, lint, validate.
+* Write: this is a web app. It does not link Arches-HAL, does not reuse `hal_service.proto` or `client_service.proto`, and is not part of the on-device build.
+* Test: three suites — `test-api`, `test-gateway`, `test-web`. All three must pass.
+* Migrations: alembic, and the gate enforces a **single head**. Check before adding one.
 
-## Validation gate - .claude/validate.sh
+## How you validate
 
-```
-./.claude/validate.sh quick   # seconds: architectural-boundary checks (no on-device protos, no HAL coupling), single alembic head, ruff + web linters
-./.claude/validate.sh full    # + `make test-api`, `test-gateway`, `test-web`
-```
+* Gate: `./.claude/validate.sh quick` (seconds) or `full` (adds build + tests). Run it before you claim done.
+* Exit codes: `0` pass, `1`-`76` fail, `77` a check never ran. **77 is not a pass.**
+* The gate and everything under `.claude/lib`, `hooks`, `commands`, `settings.json` is human-owned. Run it, never edit it.
 
-Exit codes follow the fleet contract: 0 pass, 1-76 fail, 77 means a check never ran (missing toolchain) - which is not a pass. Runs automatically via the Stop hook in .claude/settings.json, on demand via /validate, and as part of any loop the engine executes here.
+## Do
 
-Human-owned: the Loop Engine runs this script and never edits it. If a check is wrong, fix it yourself or raise it in the loop's Lessons Learned.
+* Keep the architectural boundary the gate checks: no on-device protos, no HAL coupling.
+* Model the device link on Client-to-Server's shape (device dials out, persistent connection, presence = liveness) but keep it a separate protocol with its own pairing-token auth.
+* Put device-side work in Arches-Configuration, coordinated from here — the HQ pairing section, token storage and outbound agent belong in that repo.
+* Read `ARCHITECTURE.md` for the design and `PLAN.md` for phasing before changing structure.
+
+## Don't
+
+* **Don't link Arches-HAL or reuse its protos.** Any resemblance to Client/Server's proto sharing is coincidental, not a dependency.
+* **Don't add a second alembic head.** The gate fails on it and the fix is a merge migration.
+* **Don't confuse this with the two other UIs.** Arches-Configuration's WebConfig is local and single-device; Arches-Dashboard is a standalone browser app. HQ is fleet-wide and cloud-hosted.
+* **Don't scope a loop here without confirming the remote is reachable** (`git ls-remote`) — `branch-push` fails late otherwise.
 
 <!-- BEGIN loop-engine -->
 ## Do's and Don'ts (maintained by the Loop Engine)
