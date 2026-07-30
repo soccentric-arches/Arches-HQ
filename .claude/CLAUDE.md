@@ -24,4 +24,6 @@ Human-owned: the Loop Engine runs this script and never edits it. If a check is 
 
 Appended by the Loop Engine on loop close; curated by a human when approving a loop out of in-review/. Nothing outside this fence is engine-writable.
 
+- (2026-07-30, loop 20260730-app-telemetry-daemon) Telemetry sample ingest added: `POST /devices/{device_id}/telemetry` (operator) and `GET /devices/{device_id}/telemetry/{sample_id}` (viewer) on `api/app/routers/telemetry.py`, backed by the pre-existing `telemetry_sample` table (phase1 migration). DO NOT rename the table to a bare `telemetry` without a human blessing — the loop's stated constraint said "new table named telemetry" but the table pre-existed as `telemetry_sample` and renaming would break the GET series router and risk a second alembic head. The accepted name is `telemetry_sample` pending human confirmation (see the loop's Lessons Learned F1).
+- (2026-07-30, loop 20260730-app-telemetry-daemon) `make lint` was RED at baseline due to 8 pre-existing unused-import (F401) errors in `api/app/routers/devices.py`; cleared by `ruff check --fix` in the same commit as the telemetry work. If you see F401s reappear there, they are new, not pre-existing.
 <!-- END loop-engine -->
