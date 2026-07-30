@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, UTC
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -10,22 +10,16 @@ from app.config import get_settings
 from app.db.deps import get_db
 from app.models.device import Device
 from app.models.device_credential import DeviceCredential
-from app.models.enums import CommandKind, CredentialKind, PairingState, UserRole
-from app.models.pending_command import PendingCommand
-from app.models.telemetry import TelemetrySample
+from app.models.enums import CredentialKind, PairingState, UserRole
 from app.schemas.common import Page
 from app.schemas.device import (
-    BulkProvisionCreate,
-    BulkProvisionOut,
     DeviceCreate,
     DeviceCreateOut,
     DeviceListOut,
     DeviceOut,
-    LocationOut,
 )
 from app.services import audit
 from app.services.credentials import generate_token, hash_token
-from app.services.device_scope import get_tenant_device_or_404
 from app.services.tenant_repo import TenantContext, TenantRepo
 
 router = APIRouter(prefix="/devices", tags=["devices"])
