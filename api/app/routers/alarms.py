@@ -10,7 +10,13 @@ from app.db.deps import get_db
 from app.models.alarm import Alarm, AlarmRule
 from app.models.device import Device
 from app.models.enums import AlarmState, UserRole
-from app.schemas.alarm import AlarmListOut, AlarmOut, AlarmRuleCreate, AlarmRuleOut
+from app.schemas.alarm import (
+    AlarmIn,
+    AlarmListOut,
+    AlarmOut,
+    AlarmRuleCreate,
+    AlarmRuleOut,
+)
 from app.schemas.common import Page
 from app.services import audit
 from app.services.device_scope import get_tenant_device_or_404
@@ -19,6 +25,25 @@ from app.services.tenant_repo import TenantContext, TenantRepo
 device_alarms_router = APIRouter(prefix="/devices/{device_id}/alarms", tags=["alarms"])
 alarms_router = APIRouter(prefix="/alarms", tags=["alarms"])
 alarm_rules_router = APIRouter(prefix="/alarm-rules", tags=["alarms"])
+
+# 4-byte alarm code packing (device-reported alarms, R3 ingest path).
+# The code is a big-endian uint32 where:
+#   byte 0 (most significant) = major_id
+#   byte 1                   = sub_section
+#   byte 2                   = fault_type
+#   byte 3 (least significant) = severity
+# Example: 0x01020304 -> major_id=1, sub_section=2, fault_type=3, severity=4.
+# This byte order MUST match the daemon's `alarms_encode` packing.
+
+
+def _decode_alarm_code(code: int) -> tuple[int, int, int, int]:
+    """Unpack a 4-byte alarm code into (major_id, sub_section, fault_type, severity)."""
+    return (
+        (code >> 24) & 0xFF,
+        (code >> 16) & 0xFF,
+        (code >> 8) & 0xFF,
+        code & 0xFF,
+    )
 
 
 @device_alarms_router.get("", response_model=AlarmListOut)
@@ -40,6 +65,64 @@ async def list_device_alarms(
         items=[AlarmOut.model_validate(r) for r in rows],
         page=Page(total=total, limit=limit, offset=offset),
     )
+
+
+@device_alarms_router.post("", response_model=AlarmOut, status_code=status.HTTP_201_CREATED)
+async def ingest_device_alarm(
+    device_id: UUID,
+    body: AlarmIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.operator)),
+):
+    """Ingest a device-reported 4-byte alarm (R3).
+
+    The device must belong to the caller's tenant (scoped via the parent
+    device). `alarm_code` is a hex string (e.g. "0x01020304") decoded into
+    major_id / sub_section / fault_type / severity using the byte order
+    documented at the top of this module. The row is created in the `active`
+    state with no rule (device-reported alarms have no originating rule).
+    `triggered_at` is the device-side timestamp, stored verbatim.
+    """
+    await get_tenant_device_or_404(db, ctx, device_id)
+
+    try:
+        code = int(body.alarm_code, 16)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "alarm_code must be a hex string e.g. '0x01020304'",
+        ) from exc
+    if code < 0 or code > 0xFFFFFFFF:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "alarm_code must fit in 4 bytes (0x00000000..0xffffffff)",
+        )
+
+    major_id, sub_section, fault_type, severity = _decode_alarm_code(code)
+
+    alarm = Alarm(
+        device_id=device_id,
+        alarm_rule_id=None,
+        state=AlarmState.active,
+        triggered_at=body.triggered_at,
+        major_id=major_id,
+        sub_section=sub_section,
+        fault_type=fault_type,
+        severity=severity,
+        alarm_code=code,
+    )
+    db.add(alarm)
+    await db.flush()
+    await audit.record(
+        db,
+        ctx,
+        "alarm.ingest",
+        target_device_id=device_id,
+        payload={"alarm_code": body.alarm_code},
+    )
+    await db.commit()
+    await db.refresh(alarm)
+    return AlarmOut.model_validate(alarm)
 
 
 async def _get_tenant_alarm_or_404(db: AsyncSession, ctx: TenantContext, alarm_id: UUID) -> Alarm:
@@ -84,6 +167,37 @@ async def resolve_alarm(
     await db.commit()
     await db.refresh(alarm)
     return AlarmOut.model_validate(alarm)
+
+
+@device_alarms_router.post("/{alarm_id}/clear", response_model=AlarmOut)
+async def clear_device_alarm(
+    device_id: UUID,
+    alarm_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.operator)),
+):
+    """Device-scoped "clear" verb (R3).
+
+    Semantically identical to `POST /alarms/{alarm_id}/resolve` (sets
+    state=resolved + resolved_at), but scoped to the tenant's device so the
+    "clear" command the loop names is a real endpoint, not an overload of
+    "resolve". The alarm must belong to the device in the path and to the
+    caller's tenant.
+    """
+    await get_tenant_device_or_404(db, ctx, device_id)
+    row = (
+        await db.execute(
+            select(Alarm).where(Alarm.id == alarm_id, Alarm.device_id == device_id)
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "alarm not found")
+    row.state = AlarmState.resolved
+    row.resolved_at = datetime.now(UTC)
+    await audit.record(db, ctx, "alarm.clear", target_device_id=device_id)
+    await db.commit()
+    await db.refresh(row)
+    return AlarmOut.model_validate(row)
 
 
 @alarm_rules_router.get("", response_model=list[AlarmRuleOut])
