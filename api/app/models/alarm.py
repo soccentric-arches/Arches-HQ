@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, SmallInteger
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -30,13 +30,8 @@ class AlarmRule(Base, TenantScopedMixin):
 class Alarm(Base, UUIDPKMixin):
     __tablename__ = "alarm"
 
-    # Nullable: device-reported alarms (R3 ingest path) have no rule, only the
-    # 4-byte alarm code. Rule-based alarms still carry the originating rule.
-    alarm_rule_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("alarm_rule.id", ondelete="CASCADE"),
-        nullable=True,
-        index=True,
+    alarm_rule_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("alarm_rule.id", ondelete="CASCADE"), index=True
     )
     device_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("device.id", ondelete="CASCADE"), index=True
@@ -54,17 +49,3 @@ class Alarm(Base, UUIDPKMixin):
     source_fault_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("fault.id", ondelete="SET NULL"), nullable=True
     )
-
-    # 4-byte alarm scheme fields for device-reported alarms (R3 ingest path).
-    # All nullable so existing rule-based alarms still insert cleanly.
-    # Byte order of `alarm_code` (big-endian uint32, byte 0 = most significant):
-    #   byte 0 = major_id, byte 1 = sub_section,
-    #   byte 2 = fault_type, byte 3 = severity.
-    major_id: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    sub_section: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    fault_type: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    severity: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    # The raw packed 4-byte code, stored for traceability/round-trip checks.
-    # BigInteger (not Integer) because the 4-byte code is unsigned and
-    # 0xFFFFFFFF (4294967295) overflows Postgres INTEGER (int32, max ~2.1e9).
-    alarm_code: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

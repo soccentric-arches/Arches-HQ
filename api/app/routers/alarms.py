@@ -9,15 +9,11 @@ from app.auth.deps import require_role
 from app.db.deps import get_db
 from app.models.alarm import Alarm, AlarmRule
 from app.models.device import Device
+from app.models.device_alarm import DeviceAlarm
 from app.models.enums import AlarmState, UserRole
-from app.schemas.alarm import (
-    AlarmIn,
-    AlarmListOut,
-    AlarmOut,
-    AlarmRuleCreate,
-    AlarmRuleOut,
-)
+from app.schemas.alarm import AlarmOut, AlarmRuleCreate, AlarmRuleOut
 from app.schemas.common import Page
+from app.schemas.device_alarm import DeviceAlarmIn, DeviceAlarmListOut, DeviceAlarmOut
 from app.services import audit
 from app.services.device_scope import get_tenant_device_or_404
 from app.services.tenant_repo import TenantContext, TenantRepo
@@ -46,7 +42,7 @@ def _decode_alarm_code(code: int) -> tuple[int, int, int, int]:
     )
 
 
-@device_alarms_router.get("", response_model=AlarmListOut)
+@device_alarms_router.get("", response_model=DeviceAlarmListOut)
 async def list_device_alarms(
     device_id: UUID,
     limit: int = Query(default=100, le=500),
@@ -54,34 +50,40 @@ async def list_device_alarms(
     db: AsyncSession = Depends(get_db),
     ctx: TenantContext = Depends(require_role(UserRole.viewer)),
 ):
+    """List device-reported alarms from the ``alarms`` table (R3).
+
+    Returns rows for the tenant's device, newest first, with the decoded
+    4-byte alarm scheme fields.
+    """
     await get_tenant_device_or_404(db, ctx, device_id)
 
-    stmt = select(Alarm).where(Alarm.device_id == device_id)
+    stmt = select(DeviceAlarm).where(DeviceAlarm.device_id == device_id)
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
-    stmt = stmt.order_by(Alarm.triggered_at.desc()).limit(limit).offset(offset)
+    stmt = stmt.order_by(DeviceAlarm.triggered_at.desc()).limit(limit).offset(offset)
     rows = (await db.execute(stmt)).scalars().all()
 
-    return AlarmListOut(
-        items=[AlarmOut.model_validate(r) for r in rows],
+    return DeviceAlarmListOut(
+        items=[DeviceAlarmOut.model_validate(r) for r in rows],
         page=Page(total=total, limit=limit, offset=offset),
     )
 
 
-@device_alarms_router.post("", response_model=AlarmOut, status_code=status.HTTP_201_CREATED)
+@device_alarms_router.post(
+    "", response_model=DeviceAlarmOut, status_code=status.HTTP_201_CREATED
+)
 async def ingest_device_alarm(
     device_id: UUID,
-    body: AlarmIn,
+    body: DeviceAlarmIn,
     db: AsyncSession = Depends(get_db),
     ctx: TenantContext = Depends(require_role(UserRole.operator)),
 ):
-    """Ingest a device-reported 4-byte alarm (R3).
+    """Ingest a device-reported 4-byte alarm into the ``alarms`` table (R3).
 
     The device must belong to the caller's tenant (scoped via the parent
-    device). `alarm_code` is a hex string (e.g. "0x01020304") decoded into
-    major_id / sub_section / fault_type / severity using the byte order
-    documented at the top of this module. The row is created in the `active`
-    state with no rule (device-reported alarms have no originating rule).
-    `triggered_at` is the device-side timestamp, stored verbatim.
+    device). ``alarm_code`` is a hex string (e.g. ``"0x01020304"``) decoded
+    into major_id / sub_section / fault_type / severity using the byte order
+    documented at the top of this module. The row is created in the ``active``
+    state. ``triggered_at`` is the device-side timestamp, stored verbatim.
     """
     await get_tenant_device_or_404(db, ctx, device_id)
 
@@ -100,16 +102,15 @@ async def ingest_device_alarm(
 
     major_id, sub_section, fault_type, severity = _decode_alarm_code(code)
 
-    alarm = Alarm(
+    alarm = DeviceAlarm(
         device_id=device_id,
-        alarm_rule_id=None,
-        state=AlarmState.active,
-        triggered_at=body.triggered_at,
         major_id=major_id,
         sub_section=sub_section,
         fault_type=fault_type,
         severity=severity,
         alarm_code=code,
+        state=AlarmState.active,
+        triggered_at=body.triggered_at,
     )
     db.add(alarm)
     await db.flush()
@@ -122,7 +123,7 @@ async def ingest_device_alarm(
     )
     await db.commit()
     await db.refresh(alarm)
-    return AlarmOut.model_validate(alarm)
+    return DeviceAlarmOut.model_validate(alarm)
 
 
 async def _get_tenant_alarm_or_404(db: AsyncSession, ctx: TenantContext, alarm_id: UUID) -> Alarm:
@@ -169,25 +170,28 @@ async def resolve_alarm(
     return AlarmOut.model_validate(alarm)
 
 
-@device_alarms_router.post("/{alarm_id}/clear", response_model=AlarmOut)
+@device_alarms_router.post("/{alarm_id}/clear", response_model=DeviceAlarmOut)
 async def clear_device_alarm(
     device_id: UUID,
     alarm_id: UUID,
     db: AsyncSession = Depends(get_db),
     ctx: TenantContext = Depends(require_role(UserRole.operator)),
 ):
-    """Device-scoped "clear" verb (R3).
+    """Device-scoped "clear" verb for a device-reported alarm (R3).
 
-    Semantically identical to `POST /alarms/{alarm_id}/resolve` (sets
-    state=resolved + resolved_at), but scoped to the tenant's device so the
-    "clear" command the loop names is a real endpoint, not an overload of
-    "resolve". The alarm must belong to the device in the path and to the
-    caller's tenant.
+    ``clear`` is semantically identical to ``resolve``: the alarm's state
+    transitions ``active -> resolved`` and ``resolved_at`` is stamped. There
+    is no separate ``cleared`` state -- the existing ``AlarmState`` enum has
+    only ``active``/``acknowledged``/``resolved``, and ``clear`` reuses
+    ``resolved`` (F5 equivalence). The alarm must belong to the device in
+    the path and to the caller's tenant.
     """
     await get_tenant_device_or_404(db, ctx, device_id)
     row = (
         await db.execute(
-            select(Alarm).where(Alarm.id == alarm_id, Alarm.device_id == device_id)
+            select(DeviceAlarm).where(
+                DeviceAlarm.id == alarm_id, DeviceAlarm.device_id == device_id
+            )
         )
     ).scalar_one_or_none()
     if row is None:
@@ -197,7 +201,7 @@ async def clear_device_alarm(
     await audit.record(db, ctx, "alarm.clear", target_device_id=device_id)
     await db.commit()
     await db.refresh(row)
-    return AlarmOut.model_validate(row)
+    return DeviceAlarmOut.model_validate(row)
 
 
 @alarm_rules_router.get("", response_model=list[AlarmRuleOut])

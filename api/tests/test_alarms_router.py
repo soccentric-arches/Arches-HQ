@@ -11,6 +11,10 @@ from tests.factories import login_as, make_tenant, make_user
 #   byte 0 (MSB) = major_id, byte 1 = sub_section,
 #   byte 2       = fault_type, byte 3 (LSB) = severity.
 # 0x01020304 -> major_id=1, sub_section=2, fault_type=3, severity=4.
+#
+# These tests exercise the device-reported ``alarms`` table (model
+# DeviceAlarm, __tablename__ == "alarms"), which is distinct from the
+# rule-based ``alarm`` table.
 
 
 async def test_post_alarm_then_get_decodes_4_fields(client, db_session):
@@ -44,9 +48,9 @@ async def test_post_alarm_then_get_decodes_4_fields(client, db_session):
     assert created["fault_type"] == 3
     assert created["severity"] == 4
     assert created["alarm_code"] == 0x01020304
-    assert created["alarm_rule_id"] is None
     assert created["state"] == AlarmState.active.value
     assert created["device_id"] == device_id
+    assert "alarm_rule_id" not in created  # DeviceAlarm has no rule
 
     # GET the device alarms list; the row must carry the same decoded fields.
     list_resp = await client.get(f"/devices/{device_id}/alarms")
@@ -61,12 +65,13 @@ async def test_post_alarm_then_get_decodes_4_fields(client, db_session):
     assert fetched["fault_type"] == 3
     assert fetched["severity"] == 4
     assert fetched["alarm_code"] == 0x01020304
-    assert fetched["alarm_rule_id"] is None
     assert fetched["device_id"] == device_id
 
 
 async def test_post_alarm_boundary_values(client, db_session):
-    """All-zero and all-0xFF bytes round-trip through the 4-byte decode."""
+    """All-zero and all-0xFF bytes round-trip through the 4-byte decode,
+    including the 0xFFFFFFFF boundary that overflows int32 (D1: BigInteger).
+    """
     tenant = await make_tenant(db_session)
     admin = await make_user(db_session, tenant, UserRole.admin)
     device = Device(tenant_id=tenant.id, name="pi-5-alarm-bnd")
@@ -118,7 +123,9 @@ async def test_cross_tenant_device_404(client, db_session):
 
 
 async def test_clear_device_alarm_resolves(client, db_session):
-    """R3: the device-scoped `clear` verb resolves the alarm (state=resolved)."""
+    """R3: the device-scoped `clear` verb resolves the alarm (state=resolved).
+    `clear` == `resolve` -- there is no separate `cleared` state (F5).
+    """
     tenant = await make_tenant(db_session)
     admin = await make_user(db_session, tenant, UserRole.admin)
     device = Device(tenant_id=tenant.id, name="pi-5-alarm-clear")
