@@ -83,6 +83,27 @@ export interface AlarmListResponse {
   page: Page
 }
 
+// Device-reported 4-byte alarm from the `alarms` table (GET /devices/{id}/alarms).
+// `alarm_code` is the packed big-endian uint32 (byte0=major_id, byte1=sub_section,
+// byte2=fault_type, byte3=severity), e.g. 0x01020304 -> (1, 2, 3, 4).
+export interface DeviceAlarm {
+  id: string
+  device_id: string
+  major_id: number
+  sub_section: number
+  fault_type: number
+  severity: number
+  alarm_code: number
+  state: AlarmState
+  triggered_at: string
+  resolved_at: string | null
+}
+
+export interface DeviceAlarmListResponse {
+  items: DeviceAlarm[]
+  page: Page
+}
+
 export interface AlarmRule {
   id: string
   name: string

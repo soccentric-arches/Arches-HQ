@@ -2,7 +2,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
-import type { Alarm, Fault } from '@/lib/types'
+import type { DeviceAlarm, Fault } from '@/lib/types'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
@@ -11,7 +11,7 @@ const props = defineProps<{ deviceId: string }>()
 const auth = useAuthStore()
 
 const faults = ref<Fault[]>([])
-const alarms = ref<Alarm[]>([])
+const alarms = ref<DeviceAlarm[]>([])
 const loading = ref(true)
 const error = ref('')
 
@@ -20,6 +20,11 @@ function severityTone(sev: string) {
 }
 function alarmTone(state: string) {
   return state === 'active' ? 'danger' : state === 'acknowledged' ? 'warning' : 'success'
+}
+
+// Render a packed 4-byte alarm_code as a hex string, e.g. 0x01020304.
+function alarmCodeHex(code: number) {
+  return `0x${code.toString(16).padStart(8, '0')}`
 }
 
 async function load() {
@@ -39,12 +44,8 @@ async function load() {
   }
 }
 
-async function acknowledge(id: string) {
-  await api.alarms.acknowledge(id)
-  await load()
-}
-async function resolve(id: string) {
-  await api.alarms.resolve(id)
+async function clearAlarm(alarmId: string) {
+  await api.alarms.clear(props.deviceId, alarmId)
   await load()
 }
 
@@ -60,19 +61,20 @@ onMounted(load)
       <h3 class="mb-2 text-sm font-semibold">Alarms</h3>
       <Card v-if="alarms.length === 0" class="p-4 text-sm text-muted-foreground">No alarms.</Card>
       <div v-else class="space-y-2">
-        <Card v-for="a in alarms" :key="a.id" class="flex items-center justify-between p-3">
-          <div class="flex items-center gap-2">
-            <Badge :tone="alarmTone(a.state)">{{ a.state }}</Badge>
-            <span class="text-sm text-muted-foreground">{{ new Date(a.triggered_at).toLocaleString() }}</span>
+        <Card v-for="a in alarms" :key="a.id" class="p-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <Badge :tone="alarmTone(a.state)">{{ a.state }}</Badge>
+              <span class="text-sm text-muted-foreground">{{ new Date(a.triggered_at).toLocaleString() }}</span>
+            </div>
+            <div v-if="auth.hasRole('operator') && a.state === 'active'">
+              <Button size="sm" variant="secondary" @click="clearAlarm(a.id)">Clear</Button>
+            </div>
           </div>
-          <div v-if="auth.hasRole('operator')" class="flex gap-2">
-            <Button v-if="a.state === 'active'" size="sm" variant="secondary" @click="acknowledge(a.id)"
-              >Acknowledge</Button
-            >
-            <Button v-if="a.state !== 'resolved'" size="sm" variant="secondary" @click="resolve(a.id)"
-              >Resolve</Button
-            >
-          </div>
+          <p class="mt-1 text-xs text-muted-foreground">
+            code {{ alarmCodeHex(a.alarm_code) }} · major {{ a.major_id }} · sub
+            {{ a.sub_section }} · type {{ a.fault_type }} · sev {{ a.severity }}
+          </p>
         </Card>
       </div>
     </div>

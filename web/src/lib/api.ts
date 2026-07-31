@@ -1,11 +1,12 @@
 import type {
   Alarm,
-  AlarmListResponse,
   AlarmRule,
   AuditLogListResponse,
   Backup,
   BackupListResponse,
   Device,
+  DeviceAlarm,
+  DeviceAlarmListResponse,
   DeviceCreateResponse,
   DeviceListResponse,
   FaultListResponse,
@@ -76,9 +77,12 @@ export const api = {
     list: (deviceId: string) => request<FaultListResponse>(`/devices/${deviceId}/faults`),
   },
   alarms: {
-    listForDevice: (deviceId: string) => request<AlarmListResponse>(`/devices/${deviceId}/alarms`),
+    listForDevice: (deviceId: string) =>
+      request<DeviceAlarmListResponse>(`/devices/${deviceId}/alarms`),
     acknowledge: (id: string) => request<Alarm>(`/alarms/${id}/acknowledge`, { method: 'POST' }),
     resolve: (id: string) => request<Alarm>(`/alarms/${id}/resolve`, { method: 'POST' }),
+    clear: (deviceId: string, alarmId: string) =>
+      request<DeviceAlarm>(`/devices/${deviceId}/alarms/${alarmId}/clear`, { method: 'POST' }),
   },
   alarmRules: {
     list: () => request<AlarmRule[]>('/alarm-rules'),
