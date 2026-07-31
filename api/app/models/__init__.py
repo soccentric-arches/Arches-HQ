@@ -1,6 +1,7 @@
 from app.models.alarm import Alarm, AlarmRule
 from app.models.audit_log import AuditLog
 from app.models.backup import Backup
+from app.models.device_alarm import DeviceAlarm
 from app.models.device import Device
 from app.models.device_credential import DeviceCredential
 from app.models.fault import Fault
@@ -16,6 +17,7 @@ __all__ = [
     "AlarmRule",
     "AuditLog",
     "Backup",
+    "DeviceAlarm",
     "Device",
     "DeviceCredential",
     "Fault",
