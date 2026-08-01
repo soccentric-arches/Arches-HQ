@@ -100,3 +100,20 @@ async def test_operator_can_ingest_viewer_cannot(client, db_session):
     login_as(client, viewer)
     resp = await client.post(f"/devices/{device.id}/telemetry", json=payload)
     assert resp.status_code == 403, resp.text
+
+
+async def test_unauthenticated_post_returns_401(client):
+    """A no-token (unauthenticated) POST to the mutating telemetry route must be
+    rejected with 401 before any device/business logic runs. Mirrors the
+    no-token pattern in test_rbac::test_unauthenticated_request_is_401.
+    """
+    resp = await client.post(
+        f"/devices/{uuid4()}/telemetry",
+        json={
+            "recorded_at": datetime(2026, 7, 30, 12, 0, 5, tzinfo=UTC).isoformat(),
+            "metric": "cpu",
+            "value": 1.0,
+            "tags": {},
+        },
+    )
+    assert resp.status_code == 401, resp.text

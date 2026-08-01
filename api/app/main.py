@@ -1,10 +1,12 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.middleware.request_id import RequestIDMiddleware
 from app.routers import alarms, audit_log, auth, devices, faults, logs, telemetry, users, ws
 from app.services.device_status_broadcast import poll_loop
 
@@ -21,6 +23,16 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title="Arches-HQ API", version="0.1.0", lifespan=lifespan)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+
+    # Structured request/correlation-id logging: accept or mint X-Request-ID,
+    # expose it as request.state.request_id, log each request with it, and
+    # echo it back on the response header.
+    app.add_middleware(RequestIDMiddleware)
 
     app.add_middleware(
         CORSMiddleware,
