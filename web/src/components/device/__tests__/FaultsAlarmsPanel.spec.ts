@@ -84,8 +84,15 @@ describe('FaultsAlarmsPanel', () => {
     api.faults.list.mockResolvedValue(emptyFaults())
     api.alarms.listForDevice.mockResolvedValue(deviceAlarmResponse())
     api.alarms.clear.mockResolvedValue({
-      ...deviceAlarmResponse().items[0],
+      id: ALARM_ID,
+      device_id: DEVICE_ID,
+      major_id: 1,
+      sub_section: 2,
+      fault_type: 3,
+      severity: 4,
+      alarm_code: 0x01020304,
       state: 'resolved',
+      triggered_at: '2026-07-30T12:00:00Z',
       resolved_at: '2026-07-30T12:01:00Z',
     })
   })
