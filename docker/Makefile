@@ -12,17 +12,23 @@
 # Stateful deps (postgres/redis/minio/keycloak) come from infra/docker-compose.yml
 # during local dev; docker-compose.yml in this dir is the full production stack.
 
-IMAGE      ?= archeshq
-TAG        ?= latest
-COMPOSE    := docker compose -f docker/docker-compose.yml --env-file .env
+# Path anchors (independent of where make is invoked from, e.g. `make -C docker`):
+#   DOCKER = this Makefile's directory (Dockerfiles + compose file)
+#   ROOT   = repo root (required build context)
+DOCKER    := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+ROOT      := $(DOCKER)/..
+
+IMAGE     ?= archeshq
+TAG       ?= latest
+COMPOSE   := docker compose -f $(DOCKER)/docker-compose.yml --env-file $(ROOT)/.env
 
 .PHONY: build build-web up down logs ps clean
 
 build: ## Build the API + agent-gateway runtime image
-	docker build -f docker/Dockerfile -t $(IMAGE)-backend:$(TAG) .
+	docker build -f $(DOCKER)/Dockerfile -t $(IMAGE)-backend:$(TAG) $(ROOT)
 
 build-web: ## Build the web frontend image
-	docker build -f docker/Dockerfile.web -t $(IMAGE)-web:$(TAG) .
+	docker build -f $(DOCKER)/Dockerfile.web -t $(IMAGE)-web:$(TAG) $(ROOT)
 
 up: ## Bring up the full stack
 	$(COMPOSE) up -d --build
