@@ -74,6 +74,10 @@ export const api = {
     get: (id: string) => request<Device>(`/devices/${id}`),
     create: (name: string) =>
       request<DeviceCreateResponse>('/devices', { method: 'POST', body: JSON.stringify({ name }) }),
+    bulkProvision: (names: string[]) =>
+      request<{
+        items: { device: Device; pairing_token: string | null }[];
+      }>('/devices/bulk', { method: 'POST', body: JSON.stringify({ names }) }),
     rename: (id: string, name: string) =>
       request<Device>(`/devices/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
     telemetry: (id: string, since?: string) => {

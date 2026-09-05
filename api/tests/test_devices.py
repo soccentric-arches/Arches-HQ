@@ -248,3 +248,44 @@ async def test_device_search_matches_serial_ip_hostname(client, db_session):
         assert resp.status_code == 200, query
         names = [d["name"] for d in resp.json()["items"]]
         assert names == [expected], query
+
+
+async def test_bulk_provision_creates_pending_devices_with_tokens(client, db_session):
+    tenant = await make_tenant(db_session)
+    admin = await make_user(db_session, tenant, UserRole.admin)
+    await db_session.commit()
+
+    login_as(client, admin)
+    resp = await client.post(
+        "/devices/bulk",
+        json={"names": ["acadia-0001", "zion-0001", "arches-0001"]},
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert len(body["items"]) == 3
+    assert all(item["pairing_token"] for item in body["items"])
+    assert all(item["device"]["pairing_state"] == "pending" for item in body["items"])
+
+    audit_resp = await client.get("/audit-log")
+    actions = [row["action"] for row in audit_resp.json()["items"]]
+    assert "device.bulk_provision" in actions
+
+
+async def test_bulk_provision_rejects_duplicates_and_requires_operator(client, db_session):
+    tenant = await make_tenant(db_session)
+    admin = await make_user(db_session, tenant, UserRole.admin)
+    await db_session.commit()
+
+    login_as(client, admin)
+    resp = await client.post("/devices/bulk", json={"names": ["dup", "dup"]})
+    assert resp.status_code == 422
+
+    resp = await client.post("/devices/bulk", json={"names": []})
+    assert resp.status_code == 422
+
+    # Viewer cannot bulk provision.
+    viewer = await make_user(db_session, tenant, UserRole.viewer)
+    await db_session.commit()
+    login_as(client, viewer)
+    resp = await client.post("/devices/bulk", json={"names": ["x-0001"]})
+    assert resp.status_code == 403

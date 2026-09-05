@@ -15,6 +15,8 @@ from app.models.enums import CommandKind, CredentialKind, PairingState, UserRole
 from app.models.pending_command import PendingCommand
 from app.schemas.common import Page
 from app.schemas.device import (
+    BulkProvisionCreate,
+    BulkProvisionOut,
     DeviceCreate,
     DeviceCreateOut,
     DeviceListOut,
@@ -286,6 +288,37 @@ async def import_device_data(
     await audit.record(db, ctx, "device.import", target_device_id=device.id, payload=counts)
     await db.commit()
     return {"ok": True, "imported": counts}
+
+
+@router.post("/bulk", response_model=BulkProvisionOut, status_code=status.HTTP_201_CREATED)
+async def bulk_provision(
+    body: BulkProvisionCreate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.operator)),
+):
+    """Pre-provision many devices at once (manufacturing / staging flow).
+
+    Each name becomes a pending device with its own single-use pairing
+    token -- hand the tokens to the devices' WebConfig HQ section and they
+    enroll on first boot.
+    """
+    names = [n.strip() for n in body.names if n.strip()]
+    if not names:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "no device names supplied")
+    if len(set(names)) != len(names):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "duplicate names in request")
+    if len(names) > 100:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "max 100 devices per batch")
+
+    items = []
+    for name in names:
+        device, raw_token = await _create_device_with_pairing_token(db, ctx, name)
+        items.append({"device": DeviceOut.model_validate(device), "pairing_token": raw_token})
+    await audit.record(
+        db, ctx, "device.bulk_provision", payload={"count": len(items), "names": names}
+    )
+    await db.commit()
+    return BulkProvisionOut(items=items)
 
 
 @router.post("/{device_id}/reboot", status_code=status.HTTP_202_ACCEPTED)

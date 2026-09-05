@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RefreshCw } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import type { UpdateArtifact, UpdateRollout } from '@/lib/types'
@@ -12,6 +12,21 @@ const artifacts = ref<UpdateArtifact[]>([])
 const rollouts = ref<UpdateRollout[]>([])
 const loading = ref(true)
 const error = ref('')
+
+// Success rate across every per-device rollout outcome recorded so far.
+const successStats = computed(() => {
+  let succeeded = 0
+  let failed = 0
+  let inFlight = 0
+  for (const r of rollouts.value)
+    for (const d of r.devices) {
+      if (d.status === 'succeeded') succeeded += 1
+      else if (d.status === 'failed') failed += 1
+      else inFlight += 1
+    }
+  const done = succeeded + failed
+  return { succeeded, failed, inFlight, rate: done ? Math.round((succeeded / done) * 100) : null }
+})
 
 function statusTone(s: string) {
   return s === 'succeeded' || s === 'completed'
@@ -62,6 +77,28 @@ onMounted(() => load())
     <Card v-if="loading" class="p-6 text-sm text-muted-foreground">Loading…</Card>
     <Card v-else-if="error" class="p-6 text-sm text-danger">{{ error }}</Card>
     <template v-else>
+      <div class="mb-4 grid grid-cols-3 gap-4">
+        <Card class="p-4 text-center">
+          <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Success rate</p>
+          <p class="mt-1 text-2xl font-semibold">
+            {{ successStats.rate === null ? '—' : `${successStats.rate}%` }}
+          </p>
+        </Card>
+        <Card class="p-4 text-center">
+          <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Succeeded</p>
+          <p class="mt-1 text-2xl font-semibold text-success">{{ successStats.succeeded }}</p>
+        </Card>
+        <Card class="p-4 text-center">
+          <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Failed / in flight
+          </p>
+          <p class="mt-1 text-2xl font-semibold">
+            <span class="text-danger">{{ successStats.failed }}</span>
+            <span class="text-sm text-muted-foreground"> / {{ successStats.inFlight }} </span>
+          </p>
+        </Card>
+      </div>
+
       <Card class="p-4">
         <h3 class="text-sm font-semibold">Rollouts</h3>
         <p v-if="rollouts.length === 0" class="mt-2 text-sm text-muted-foreground">
