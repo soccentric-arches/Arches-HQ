@@ -4,6 +4,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import SESSION_COOKIE_NAME
+from app.auth.pwd import hash_password
 from app.auth.session import issue_session_token
 from app.models.enums import UserRole
 from app.models.tenant import Tenant
@@ -24,7 +25,7 @@ async def make_user(
         tenant_id=tenant.id,
         email=email or f"{role.value}-{uuid.uuid4().hex[:8]}@example.com",
         role=role,
-        auth_subject_id=f"sub-{uuid.uuid4().hex[:8]}",
+        password_hash=hash_password("devpassword"),
     )
     session.add(user)
     await session.flush()

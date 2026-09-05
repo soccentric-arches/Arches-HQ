@@ -61,3 +61,6 @@ class CommandKind(str, enum.Enum):
     restore = "restore"
     factory_reset = "factory_reset"
     apply_update = "apply_update"
+    reboot = "reboot"
+    shutdown = "shutdown"
+    apply_config = "apply_config"

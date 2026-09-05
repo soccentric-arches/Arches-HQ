@@ -1,6 +1,10 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Repo root (config.py lives at <root>/api/app/config.py).
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -8,23 +12,12 @@ class Settings(BaseSettings):
 
     env: str = "dev"
 
-    database_url: str = "postgresql+asyncpg://archeshq:archeshq@localhost:5432/archeshq"
+    # SQLite everywhere: one HQ database + one file per device, all
+    # under the storage root (ARCHESHQ_STORAGE_DIR in docker).
+    database_url: str = f"sqlite+aiosqlite:///{_REPO_ROOT / 'storage' / 'hq.sqlite'}"
 
-    # OIDC (human auth). Dev default points at the self-hosted Keycloak
-    # brought up by infra/docker-compose.yml -- see IMPLEMENTATION_PLAN §1.2:
-    # "if no IdP is chosen yet, use a self-hosted option... so Phase 1 isn't
-    # blocked on an external vendor decision."
-    oidc_issuer: str = "http://localhost:8081/realms/archeshq"
-    oidc_client_id: str = "archeshq-api"
-    oidc_client_secret: str = "dev-secret-change-me"
-    # No static oidc_redirect_uri: it's derived per-request from the
-    # browser's actual origin (X-Forwarded-Host, forwarded by Vite's dev
-    # proxy) in app/routers/auth.py -- a fixed value breaks the moment the
-    # app is reachable at more than one hostname (localhost, LAN IP, mDNS
-    # name), which is exactly what the LAN-access setup needs.
-    oidc_redirect_fallback_host: str = "localhost:5173"
-
-    # Session JWT issued by the API after OIDC login, stored in an httpOnly cookie.
+    # Session JWT issued by the API after username+password login, stored in
+    # an httpOnly cookie.
     session_secret_key: str = "dev-only-change-me-in-every-real-deployment"
     session_algorithm: str = "HS256"
     session_ttl_seconds: int = 60 * 60 * 8
@@ -35,6 +28,11 @@ class Settings(BaseSettings):
     s3_secret_key: str = "archeshq-dev-secret"
     s3_bucket: str = "archeshq"
     s3_region: str = "us-east-1"
+
+    # Filesystem storage root for everything persistent that is not the
+    # Postgres data dir: per-device folders (SQLite mirror, exports) and
+    # OTA artifact staging. Docker bind-mounts it from ./storage.
+    storage_dir: str = str(_REPO_ROOT / "storage")
 
     # Redis (arq background jobs).
     redis_url: str = "redis://localhost:6379/0"

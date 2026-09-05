@@ -1,24 +1,50 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { ChevronRight } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import type { Device } from '@/lib/types'
-import Badge from '@/components/ui/Badge.vue'
-import Card from '@/components/ui/Card.vue'
-import Tabs from '@/components/ui/Tabs.vue'
-import TabsList from '@/components/ui/TabsList.vue'
-import TabsTrigger from '@/components/ui/TabsTrigger.vue'
-import TabsContent from '@/components/ui/TabsContent.vue'
+import DeviceSidebar, { DEVICE_SECTION_GROUPS } from '@/components/device/DeviceSidebar.vue'
+import OverviewPanel from '@/components/device/OverviewPanel.vue'
+import MonitoringPanel from '@/components/device/MonitoringPanel.vue'
 import TelemetryPanel from '@/components/device/TelemetryPanel.vue'
-import FaultsAlarmsPanel from '@/components/device/FaultsAlarmsPanel.vue'
+import AlarmsPanel from '@/components/device/AlarmsPanel.vue'
+import FaultsPanel from '@/components/device/FaultsPanel.vue'
 import LogsPanel from '@/components/device/LogsPanel.vue'
-import OperationsPanel from '@/components/device/OperationsPanel.vue'
+import SettingsPanel from '@/components/device/SettingsPanel.vue'
+import PowerPanel from '@/components/device/PowerPanel.vue'
+import TimeSyncPanel from '@/components/device/TimeSyncPanel.vue'
+import NetworkPanel from '@/components/device/NetworkPanel.vue'
+import ServicesPanel from '@/components/device/ServicesPanel.vue'
+import CloudPanel from '@/components/device/CloudPanel.vue'
+import BackupsPanel from '@/components/device/BackupsPanel.vue'
+import OTAPanel from '@/components/device/OTAPanel.vue'
+import SecurityPanel from '@/components/device/SecurityPanel.vue'
+import HardwarePanel from '@/components/device/HardwarePanel.vue'
 
 const props = defineProps<{ id: string }>()
 
 const device = ref<Device | null>(null)
 const loading = ref(true)
 const error = ref('')
+
+const route = useRoute()
+const router = useRouter()
+
+const allSections = DEVICE_SECTION_GROUPS.flatMap((g) => g.items)
+
+// The active device section is reflected in the URL (?section=…) so each
+// pane stays deep-linkable.
+const active = computed(() => {
+  const value = route.query.section
+  return typeof value === 'string' && allSections.some((s) => s.value === value)
+    ? value
+    : 'overview'
+})
+
+function selectSection(value: string) {
+  router.replace({ query: { ...route.query, section: value } })
+}
 
 onMounted(async () => {
   try {
@@ -32,65 +58,37 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div>
-    <RouterLink to="/" class="text-sm text-muted-foreground hover:text-foreground">&larr; Devices</RouterLink>
+  <div class="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+    <!-- Device sidebar: everything device-scoped lives here. -->
+    <DeviceSidebar v-if="device" :device="device" :active="active" @select="selectSection" />
 
-    <div v-if="loading" class="mt-4 text-sm text-muted-foreground">Loading…</div>
-    <div v-else-if="error" class="mt-4 text-sm text-danger">{{ error }}</div>
-    <template v-else-if="device">
-      <div class="mt-2 mb-6 flex items-center gap-3">
-        <h1 class="text-xl font-semibold">{{ device.name }}</h1>
-        <Badge :tone="device.online ? 'success' : 'neutral'">{{ device.online ? 'Online' : 'Offline' }}</Badge>
-        <Badge :tone="device.pairing_state === 'authorized' ? 'accent' : 'neutral'">{{
-          device.pairing_state
-        }}</Badge>
-      </div>
+    <section class="min-w-0">
+      <nav class="mb-4 flex items-center gap-1 text-sm text-muted-foreground" aria-label="Breadcrumb">
+        <RouterLink to="/" class="hover:text-foreground">Devices</RouterLink>
+        <ChevronRight class="h-3.5 w-3.5" />
+        <span v-if="device" class="truncate font-medium text-foreground">{{ device.name }}</span>
+      </nav>
 
-      <Tabs default-value="overview">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="telemetry">Telemetry</TabsTrigger>
-          <TabsTrigger value="faults">Faults &amp; Alarms</TabsTrigger>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
-          <TabsTrigger value="ops">Operations</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview">
-          <Card class="grid grid-cols-2 gap-4 p-6 text-sm sm:grid-cols-3">
-            <div>
-              <div class="text-muted-foreground">Serial</div>
-              <div class="mt-1">{{ device.serial ?? '—' }}</div>
-            </div>
-            <div>
-              <div class="text-muted-foreground">Board revision</div>
-              <div class="mt-1">{{ device.board_rev ?? '—' }}</div>
-            </div>
-            <div>
-              <div class="text-muted-foreground">Last seen</div>
-              <div class="mt-1">
-                {{ device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : '—' }}
-              </div>
-            </div>
-            <div>
-              <div class="text-muted-foreground">Created</div>
-              <div class="mt-1">{{ new Date(device.created_at).toLocaleString() }}</div>
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="telemetry">
-          <TelemetryPanel :device-id="device.id" />
-        </TabsContent>
-        <TabsContent value="faults">
-          <FaultsAlarmsPanel :device-id="device.id" />
-        </TabsContent>
-        <TabsContent value="logs">
-          <LogsPanel :device-id="device.id" />
-        </TabsContent>
-        <TabsContent value="ops">
-          <OperationsPanel :device="device" @updated="device = $event" />
-        </TabsContent>
-      </Tabs>
-    </template>
+      <div v-if="loading" class="text-sm text-muted-foreground">Loading…</div>
+      <div v-else-if="error" class="text-sm text-danger">{{ error }}</div>
+      <template v-else-if="device">
+        <OverviewPanel v-if="active === 'overview'" :device="device" />
+        <MonitoringPanel v-else-if="active === 'monitoring'" :device-id="device.id" />
+        <TelemetryPanel v-else-if="active === 'telemetry'" :device-id="device.id" />
+        <AlarmsPanel v-else-if="active === 'alarms'" :device-id="device.id" />
+        <FaultsPanel v-else-if="active === 'faults'" :device-id="device.id" />
+        <LogsPanel v-else-if="active === 'logs'" :device-id="device.id" />
+        <SettingsPanel v-else-if="active === 'settings'" :device="device" @updated="device = $event" />
+        <PowerPanel v-else-if="active === 'power'" :device="device" @updated="device = $event" />
+        <TimeSyncPanel v-else-if="active === 'time-sync'" :device-id="device.id" />
+        <NetworkPanel v-else-if="active === 'network'" :device-id="device.id" />
+        <ServicesPanel v-else-if="active === 'services'" :device="device" />
+        <CloudPanel v-else-if="active === 'cloud'" :device="device" />
+        <BackupsPanel v-else-if="active === 'backup'" :device="device" />
+        <OTAPanel v-else-if="active === 'ota'" :device="device" />
+        <SecurityPanel v-else-if="active === 'security'" :device-id="device.id" />
+        <HardwarePanel v-else-if="active === 'hardware'" :device="device" />
+      </template>
+    </section>
   </div>
 </template>

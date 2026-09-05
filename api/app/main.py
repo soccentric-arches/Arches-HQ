@@ -7,7 +7,19 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.middleware.request_id import RequestIDMiddleware
-from app.routers import alarms, audit_log, auth, devices, faults, logs, telemetry, users, ws
+from app.routers import (
+    alarms,
+    audit_log,
+    auth,
+    device_config,
+    devices,
+    faults,
+    logs,
+    telemetry,
+    updates,
+    users,
+    ws,
+)
 from app.services.device_status_broadcast import poll_loop
 
 
@@ -52,6 +64,8 @@ def create_app() -> FastAPI:
     app.include_router(alarms.alarms_router)
     app.include_router(alarms.alarm_rules_router)
     app.include_router(logs.router)
+    app.include_router(device_config.router)
+    app.include_router(updates.router)
     app.include_router(ws.router)
 
     @app.get("/healthz", tags=["meta"])

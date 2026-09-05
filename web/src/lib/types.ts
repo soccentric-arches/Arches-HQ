@@ -22,7 +22,25 @@ export interface Device {
   last_seen_at: string | null
   serial: string | null
   board_rev: string | null
+  // Agent-reported identity (Arches-Configuration); null until the device pairs.
+  ip_address?: string | null
+  hostname?: string | null
+  os_version?: string | null
+  sw_version?: string | null
+  // From the heartbeat frame; null until first connect.
+  agent_version?: string | null
+  // AgentReport state dump: hardware inventory, services, network status.
+  reported?: Record<string, unknown> | null
   created_at: string
+}
+
+export type ConfigSection = 'system' | 'time' | 'network' | 'security'
+
+export interface DeviceConfig {
+  device_id: string
+  section: ConfigSection
+  config: Record<string, unknown>
+  updated_at: string
 }
 
 export interface DeviceListResponse {
@@ -136,5 +154,45 @@ export interface Backup {
 
 export interface BackupListResponse {
   items: Backup[]
+  page: Page
+}
+
+export type RolloutTarget = 'all' | 'device_group' | 'specific_devices'
+export type RolloutStatus = 'pending' | 'in_progress' | 'completed' | 'failed'
+export type DeviceRolloutStatus = 'pending' | 'applying' | 'succeeded' | 'failed'
+
+export interface UpdateArtifact {
+  id: string
+  version: string
+  target_board_rev: string
+  storage_url: string
+  checksum_sha256: string
+}
+
+export interface UpdateArtifactListResponse {
+  items: UpdateArtifact[]
+  page: Page
+}
+
+export interface UpdateRolloutDevice {
+  device_id: string
+  status: DeviceRolloutStatus
+  applied_at: string | null
+  error: string | null
+}
+
+export interface UpdateRollout {
+  id: string
+  artifact_id: string
+  artifact_version: string
+  target: RolloutTarget
+  status: RolloutStatus
+  started_at: string | null
+  completed_at: string | null
+  devices: UpdateRolloutDevice[]
+}
+
+export interface UpdateRolloutListResponse {
+  items: UpdateRollout[]
   page: Page
 }

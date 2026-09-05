@@ -2,7 +2,7 @@
 
 ## 1. Purpose and scope
 
-Arches-HQ is a local multi-service control plane: Python API and agent gateway, a Vue/Vite web frontend, and Docker Compose services for Postgres, MinIO, Redis, and Keycloak. The root Makefile orchestrates the complete developer stack.
+Arches-HQ is a local multi-service control plane: Python API and agent gateway, a Vue/Vite web frontend, and Docker Compose services for Postgres, MinIO, and Redis. The root Makefile orchestrates the complete developer stack.
 
 ## 2. Prerequisites
 
@@ -28,7 +28,7 @@ Run `make doctor`, then `make install` to create `.venv`, install editable `api[
 
 ## 6. Packaging and artifacts
 
-The web artifact is `web/dist`. Local service logs and PID files are stored under `.run`; database, object-store, and Keycloak data persist in the Compose volumes declared in `infra/docker-compose.yml`. No image build or registry-publish target exists in this Makefile.
+The web artifact is `web/dist`. Local service logs and PID files are stored under `.run`; database and object-store data persist in the Compose volumes declared in `infra/docker-compose.yml`. No image build or registry-publish target exists in this Makefile.
 
 ## 7. Deployment, install, and run
 
@@ -37,7 +37,7 @@ The web artifact is `web/dist`. Local service logs and PID files are stored unde
 - `make stop` stops the background application processes but leaves Docker dependencies running.
 - `make db-down` stops Compose dependencies; volumes persist.
 
-The stack prints a LAN URL and development Keycloak/admin credentials. These are conditional development values only. Cloud deployment, production secrets, TLS, and registry credentials are outside this Makefile and require an environment-specific deployment system.
+The stack prints a LAN URL and development login credentials. These are conditional development values only. Cloud deployment, production secrets, TLS, and registry credentials are outside this Makefile and require an environment-specific deployment system.
 
 ## 8. Cleanup
 
@@ -45,4 +45,4 @@ The stack prints a LAN URL and development Keycloak/admin credentials. These are
 
 ## 9. Hardware, cloud, and manual verification caveats
 
-HQ can run without target hardware, but end-to-end device workflows require a reachable gateway/server and correctly configured OIDC, database, and object storage. Use the LAN URL consistently during login redirects. Manual verification should cover Keycloak login, API authorization, MinIO uploads, SSE/gateway behavior, and service restart recovery.
+HQ can run without target hardware, but end-to-end device workflows require a reachable gateway/server and correctly configured database, and object storage. Use the LAN URL consistently during login. Manual verification should cover username/password login, API authorization, MinIO uploads, SSE/gateway behavior, and service restart recovery.

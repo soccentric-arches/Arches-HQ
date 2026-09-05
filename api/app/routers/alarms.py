@@ -45,6 +45,9 @@ def _decode_alarm_code(code: int) -> tuple[int, int, int, int]:
 @device_alarms_router.get("", response_model=DeviceAlarmListOut)
 async def list_device_alarms(
     device_id: UUID,
+    since: datetime | None = Query(
+        default=None, description="only alarms triggered after this instant"
+    ),
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
@@ -58,6 +61,8 @@ async def list_device_alarms(
     await get_tenant_device_or_404(db, ctx, device_id)
 
     stmt = select(DeviceAlarm).where(DeviceAlarm.device_id == device_id)
+    if since:
+        stmt = stmt.where(DeviceAlarm.triggered_at >= since)
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
     stmt = stmt.order_by(DeviceAlarm.triggered_at.desc()).limit(limit).offset(offset)
     rows = (await db.execute(stmt)).scalars().all()

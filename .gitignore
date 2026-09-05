@@ -24,3 +24,5 @@ web/.eslintcache
 
 # OS / editor
 .DS_Store
+storage/*
+!storage/README.md

@@ -8,20 +8,22 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class AgentFrame(_message.Message):
-    __slots__ = ("pairing_handshake", "heartbeat", "telemetry_batch", "fault_event", "log_upload_request", "command_ack")
+    __slots__ = ("pairing_handshake", "heartbeat", "telemetry_batch", "fault_event", "log_upload_request", "command_ack", "agent_report")
     PAIRING_HANDSHAKE_FIELD_NUMBER: _ClassVar[int]
     HEARTBEAT_FIELD_NUMBER: _ClassVar[int]
     TELEMETRY_BATCH_FIELD_NUMBER: _ClassVar[int]
     FAULT_EVENT_FIELD_NUMBER: _ClassVar[int]
     LOG_UPLOAD_REQUEST_FIELD_NUMBER: _ClassVar[int]
     COMMAND_ACK_FIELD_NUMBER: _ClassVar[int]
+    AGENT_REPORT_FIELD_NUMBER: _ClassVar[int]
     pairing_handshake: PairingHandshake
     heartbeat: Heartbeat
     telemetry_batch: TelemetryBatch
     fault_event: FaultEvent
     log_upload_request: LogUploadRequest
     command_ack: CommandAck
-    def __init__(self, pairing_handshake: _Optional[_Union[PairingHandshake, _Mapping]] = ..., heartbeat: _Optional[_Union[Heartbeat, _Mapping]] = ..., telemetry_batch: _Optional[_Union[TelemetryBatch, _Mapping]] = ..., fault_event: _Optional[_Union[FaultEvent, _Mapping]] = ..., log_upload_request: _Optional[_Union[LogUploadRequest, _Mapping]] = ..., command_ack: _Optional[_Union[CommandAck, _Mapping]] = ...) -> None: ...
+    agent_report: AgentReport
+    def __init__(self, pairing_handshake: _Optional[_Union[PairingHandshake, _Mapping]] = ..., heartbeat: _Optional[_Union[Heartbeat, _Mapping]] = ..., telemetry_batch: _Optional[_Union[TelemetryBatch, _Mapping]] = ..., fault_event: _Optional[_Union[FaultEvent, _Mapping]] = ..., log_upload_request: _Optional[_Union[LogUploadRequest, _Mapping]] = ..., command_ack: _Optional[_Union[CommandAck, _Mapping]] = ..., agent_report: _Optional[_Union[AgentReport, _Mapping]] = ...) -> None: ...
 
 class PairingHandshake(_message.Message):
     __slots__ = ("pairing_token",)
@@ -148,6 +150,12 @@ class CommandAck(_message.Message):
     error: str
     def __init__(self, command_id: _Optional[str] = ..., success: _Optional[bool] = ..., error: _Optional[str] = ...) -> None: ...
 
+class AgentReport(_message.Message):
+    __slots__ = ("report_json",)
+    REPORT_JSON_FIELD_NUMBER: _ClassVar[int]
+    report_json: str
+    def __init__(self, report_json: _Optional[str] = ...) -> None: ...
+
 class ServerFrame(_message.Message):
     __slots__ = ("pairing_result", "heartbeat_ack", "command", "signed_upload_url")
     PAIRING_RESULT_FIELD_NUMBER: _ClassVar[int]
@@ -181,18 +189,38 @@ class HeartbeatAck(_message.Message):
     def __init__(self, server_time_unix_ms: _Optional[int] = ..., next_heartbeat_interval_s: _Optional[int] = ...) -> None: ...
 
 class Command(_message.Message):
-    __slots__ = ("command_id", "take_backup_now", "restore", "factory_reset", "apply_update")
+    __slots__ = ("command_id", "take_backup_now", "restore", "factory_reset", "apply_update", "reboot", "shutdown", "apply_config")
     COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
     TAKE_BACKUP_NOW_FIELD_NUMBER: _ClassVar[int]
     RESTORE_FIELD_NUMBER: _ClassVar[int]
     FACTORY_RESET_FIELD_NUMBER: _ClassVar[int]
     APPLY_UPDATE_FIELD_NUMBER: _ClassVar[int]
+    REBOOT_FIELD_NUMBER: _ClassVar[int]
+    SHUTDOWN_FIELD_NUMBER: _ClassVar[int]
+    APPLY_CONFIG_FIELD_NUMBER: _ClassVar[int]
     command_id: str
     take_backup_now: TakeBackupNow
     restore: Restore
     factory_reset: FactoryReset
     apply_update: ApplyUpdate
-    def __init__(self, command_id: _Optional[str] = ..., take_backup_now: _Optional[_Union[TakeBackupNow, _Mapping]] = ..., restore: _Optional[_Union[Restore, _Mapping]] = ..., factory_reset: _Optional[_Union[FactoryReset, _Mapping]] = ..., apply_update: _Optional[_Union[ApplyUpdate, _Mapping]] = ...) -> None: ...
+    reboot: Reboot
+    shutdown: Shutdown
+    apply_config: ApplyConfig
+    def __init__(self, command_id: _Optional[str] = ..., take_backup_now: _Optional[_Union[TakeBackupNow, _Mapping]] = ..., restore: _Optional[_Union[Restore, _Mapping]] = ..., factory_reset: _Optional[_Union[FactoryReset, _Mapping]] = ..., apply_update: _Optional[_Union[ApplyUpdate, _Mapping]] = ..., reboot: _Optional[_Union[Reboot, _Mapping]] = ..., shutdown: _Optional[_Union[Shutdown, _Mapping]] = ..., apply_config: _Optional[_Union[ApplyConfig, _Mapping]] = ...) -> None: ...
+
+class Reboot(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Shutdown(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class ApplyConfig(_message.Message):
+    __slots__ = ("section",)
+    SECTION_FIELD_NUMBER: _ClassVar[int]
+    section: str
+    def __init__(self, section: _Optional[str] = ...) -> None: ...
 
 class TakeBackupNow(_message.Message):
     __slots__ = ()

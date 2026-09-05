@@ -1,4 +1,5 @@
 from uuid import UUID
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
@@ -19,6 +20,9 @@ router = APIRouter(prefix="/devices/{device_id}/faults", tags=["faults"])
 @router.get("", response_model=FaultListOut)
 async def list_faults(
     device_id: UUID,
+    since: datetime | None = Query(
+        default=None, description="only faults raised after this instant"
+    ),
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
@@ -27,6 +31,8 @@ async def list_faults(
     await get_tenant_device_or_404(db, ctx, device_id)
 
     stmt = select(Fault).where(Fault.device_id == device_id)
+    if since:
+        stmt = stmt.where(Fault.raised_at >= since)
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
     stmt = stmt.order_by(Fault.raised_at.desc()).limit(limit).offset(offset)
     rows = (await db.execute(stmt)).scalars().all()

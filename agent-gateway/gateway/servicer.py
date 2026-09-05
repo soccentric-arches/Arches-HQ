@@ -78,6 +78,13 @@ class AgentLinkServicer(_AgentLinkServicer):
                     next_heartbeat_interval_s=settings.sweep_interval_s,
                 )
             )
+            # Anything queued while the device was offline goes out
+            # immediately after the first ack.
+            async with session_factory() as session:
+                frames = await handlers.drain_pending_commands(session, device.id)
+                await session.commit()
+            for frame in frames:
+                yield frame
             async for out in self._pump(request_iterator, queue, device_id, session_factory):
                 yield out
         finally:
@@ -100,9 +107,11 @@ class AgentLinkServicer(_AgentLinkServicer):
                         still_allowed = await self._reauth(session, device_id, frame)
                         if not still_allowed:
                             return
-                        response = await self._dispatch(session, device_id, frame)
+                        responses = await self._dispatch(session, device_id, frame)
                         await session.commit()
-                    if response is not None:
+                    # Yield outside the session context: the connection must
+                    # not be held open across the suspension.
+                    for response in responses:
                         yield response
                     inbound_task = asyncio.ensure_future(_anext_or_none(request_iterator))
                 if outbound_task in done:
@@ -127,42 +136,53 @@ class AgentLinkServicer(_AgentLinkServicer):
             PairingState.revoked,
         )
 
-    async def _dispatch(self, session, device_id: str, frame) -> ServerFrame | None:
-
+    async def _dispatch(self, session, device_id: str, frame) -> list[ServerFrame]:
+        """Handle one inbound frame; returns the outbound frames it produces
+        (zero or more -- a heartbeat also drains queued commands).
+        """
         device = await session.get(Device, device_id)
         if device is None:
-            return None
+            return []
 
         if frame.HasField("heartbeat"):
             device.online = True
             device.last_seen_at = datetime.now(UTC)
-            return None
+            if frame.heartbeat.agent_version:
+                device.agent_version = frame.heartbeat.agent_version
+            # Every heartbeat is also the opportunity to hand the device
+            # commands the API queued since the last one.
+            return await handlers.drain_pending_commands(session, device.id)
         if frame.HasField("telemetry_batch"):
             device.online = True
             device.last_seen_at = datetime.now(UTC)
             await handlers.handle_telemetry_batch(session, device, frame.telemetry_batch)
-            return None
+            return []
         if frame.HasField("fault_event"):
             await handlers.handle_fault_event(session, device, frame.fault_event)
-            return None
+            return []
+        if frame.HasField("agent_report"):
+            await handlers.handle_agent_report(session, device, frame.agent_report.report_json)
+            return []
         if frame.HasField("log_upload_request"):
             request_ref, url, expires_in = await handlers.handle_log_upload_request(
                 session, device, frame.log_upload_request
             )
-            return ServerFrame(
-                signed_upload_url=SignedUploadUrl(
-                    request_ref=request_ref,
-                    upload_url=url,
-                    expires_at_unix_ms=_now_ms() + expires_in * 1000,
+            return [
+                ServerFrame(
+                    signed_upload_url=SignedUploadUrl(
+                        request_ref=request_ref,
+                        upload_url=url,
+                        expires_at_unix_ms=_now_ms() + expires_in * 1000,
+                    )
                 )
-            )
+            ]
         if frame.HasField("command_ack"):
             ack = frame.command_ack
             await handlers.handle_command_ack(
                 session, device, ack.command_id, ack.success, ack.error
             )
-            return None
-        return None
+            return []
+        return []
 
     async def _handle_pairing(self, session, raw_token: str):
         try:

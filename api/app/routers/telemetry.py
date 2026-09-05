@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -23,6 +25,9 @@ _EXCLUDED_METRICS = {"location"}
 async def get_telemetry(
     device_id: UUID,
     metric: str | None = Query(default=None),
+    since: datetime | None = Query(
+        default=None, description="only samples recorded after this instant"
+    ),
     points_per_metric: int = Query(default=200, le=2000),
     db: AsyncSession = Depends(get_db),
     ctx: TenantContext = Depends(require_role(UserRole.viewer)),
@@ -30,6 +35,8 @@ async def get_telemetry(
     await get_tenant_device_or_404(db, ctx, device_id)
 
     stmt = select(TelemetrySample).where(TelemetrySample.device_id == device_id)
+    if since:
+        stmt = stmt.where(TelemetrySample.recorded_at >= since)
     if metric:
         stmt = stmt.where(TelemetrySample.metric == metric)
     else:

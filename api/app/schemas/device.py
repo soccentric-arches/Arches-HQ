@@ -7,6 +7,23 @@ from app.models.enums import PairingState
 from app.schemas.common import Page
 
 
+class DeviceRename(BaseModel):
+    name: str
+
+
+class DeviceConfigOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    device_id: UUID
+    section: str
+    config: dict
+    updated_at: datetime
+
+
+class DeviceConfigIn(BaseModel):
+    config: dict
+
+
 class DeviceCreate(BaseModel):
     name: str
 
@@ -21,6 +38,12 @@ class DeviceOut(BaseModel):
     last_seen_at: datetime | None
     serial: str | None
     board_rev: str | None
+    ip_address: str | None = None
+    hostname: str | None = None
+    os_version: str | None = None
+    sw_version: str | None = None
+    agent_version: str | None = None
+    reported: dict | None = None
     created_at: datetime
 
 

@@ -1,11 +1,10 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import Enum, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base
+from app.db.base import Base, Guid, TimestampTZ
 from app.models.enums import CommandKind
 from app.models.mixins import TimestampMixin, UUIDPKMixin
 
@@ -21,12 +20,12 @@ class PendingCommand(Base, UUIDPKMixin, TimestampMixin):
     __tablename__ = "pending_command"
 
     device_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("device.id", ondelete="CASCADE"), index=True
+        Guid(), ForeignKey("device.id", ondelete="CASCADE"), index=True
     )
     # Correlates back to this row via CommandAck.command_id -- see
     # agent-gateway/gateway/handlers.py::handle_command_ack for the
     # "update:{rollout_id}" / "restore:{backup_id}" encoding.
     command_id: Mapped[str] = mapped_column(unique=True, index=True)
     kind: Mapped[CommandKind] = mapped_column(Enum(CommandKind, name="command_kind"))
-    payload: Mapped[dict] = mapped_column(JSONB, default=dict)
-    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    delivered_at: Mapped[datetime | None] = mapped_column(TimestampTZ, nullable=True)

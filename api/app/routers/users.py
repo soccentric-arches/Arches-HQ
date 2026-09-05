@@ -3,6 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_role
+from app.auth.pwd import hash_password
 from app.db.deps import get_db
 from app.models.enums import UserRole
 from app.models.user import User
@@ -30,7 +31,9 @@ async def invite_user(
     ctx: TenantContext = Depends(require_role(UserRole.admin)),
 ):
     repo = TenantRepo(db, ctx)
-    user = repo.stamp_tenant(User(email=body.email, role=body.role))
+    user = repo.stamp_tenant(
+        User(email=body.email, role=body.role, password_hash=hash_password(body.password))
+    )
     db.add(user)
     try:
         await db.flush()

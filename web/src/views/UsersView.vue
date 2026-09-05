@@ -14,6 +14,7 @@ const loading = ref(true)
 
 const inviteOpen = ref(false)
 const email = ref('')
+const password = ref('')
 const role = ref<UserRole>('viewer')
 const inviting = ref(false)
 const inviteError = ref('')
@@ -26,11 +27,16 @@ async function load() {
 
 async function invite() {
   if (!email.value.trim()) return
+  if (password.value.length < 8) {
+    inviteError.value = 'Password must be at least 8 characters.'
+    return
+  }
   inviting.value = true
   inviteError.value = ''
   try {
-    await api.users.invite(email.value.trim(), role.value)
+    await api.users.invite(email.value.trim(), role.value, password.value)
     email.value = ''
+    password.value = ''
     role.value = 'viewer'
     inviteOpen.value = false
     await load()
@@ -73,6 +79,13 @@ onMounted(load)
       <template #default="{ close }">
         <h2 class="text-base font-semibold">Invite user</h2>
         <Input v-model="email" placeholder="email@example.com" class="mt-4" />
+        <Input
+          v-model="password"
+          type="password"
+          placeholder="initial password (min 8 chars)"
+          autocomplete="new-password"
+          class="mt-3"
+        />
         <select v-model="role" class="mt-3 h-9 w-full rounded-md border border-border bg-surface px-3 text-sm">
           <option value="viewer">Viewer</option>
           <option value="operator">Operator</option>

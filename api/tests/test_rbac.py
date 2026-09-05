@@ -62,7 +62,10 @@ async def test_admin_can_invite_users(client, db_session):
     admin = await make_user(db_session, tenant, UserRole.admin)
     await db_session.commit()
     login_as(client, admin)
-    resp = await client.post("/users/invite", json={"email": "new@example.com", "role": "operator"})
+    resp = await client.post(
+        "/users/invite",
+        json={"email": "new@example.com", "role": "operator", "password": "initial-pass-1"},
+    )
     assert resp.status_code == 201
     assert resp.json()["role"] == "operator"
 

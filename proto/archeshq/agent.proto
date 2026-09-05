@@ -24,6 +24,11 @@ message AgentFrame {
     FaultEvent fault_event = 4;
     LogUploadRequest log_upload_request = 5;
     CommandAck command_ack = 6;
+    // Device-reported state dump: hardware inventory, running services,
+    // network interface status. A JSON document (schema co-owned with
+    // Arches-Configuration) so HQ can render it without a proto bump per
+    // field -- see Device.reported.
+    AgentReport agent_report = 7;
   }
 }
 
@@ -106,6 +111,13 @@ message CommandAck {
   string error = 3;
 }
 
+// Device pushes its current state (hardware inventory, running services,
+// network status) as a JSON document; HQ stores it verbatim on the device
+// row and renders it on the Hardware/Services/Network pages.
+message AgentReport {
+  string report_json = 1;
+}
+
 // ---- gateway -> device ----
 
 message ServerFrame {
@@ -139,7 +151,21 @@ message Command {
     Restore restore = 3;
     FactoryReset factory_reset = 4;
     ApplyUpdate apply_update = 5;
+    Reboot reboot = 6;
+    Shutdown shutdown = 7;
+    ApplyConfig apply_config = 8;
   }
+}
+
+message Reboot {}
+
+message Shutdown {}
+
+// Tells the device a config section changed in HQ; the device pulls the
+// section document via its next report/config sync (Arches-Configuration
+// owns the device-side application).
+message ApplyConfig {
+  string section = 1; // "system" | "time" | "network" | "security"
 }
 
 message TakeBackupNow {}

@@ -10,12 +10,6 @@ const router = createRouter({
       component: () => import('@/views/LoginView.vue'),
       meta: { public: true },
     },
-    {
-      path: '/auth/callback',
-      name: 'auth-callback',
-      component: () => import('@/views/AuthCallbackView.vue'),
-      meta: { public: true },
-    },
     { path: '/', name: 'devices', component: () => import('@/views/DeviceListView.vue') },
     {
       path: '/devices/:id',

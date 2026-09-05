@@ -14,6 +14,6 @@ class User(Base, TenantScopedMixin):
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role"), default=UserRole.viewer
     )
-    # OIDC provider's `sub` claim. Nullable so a pre-invited user row can
-    # exist before the person has ever logged in.
-    auth_subject_id: Mapped[str | None] = mapped_column(index=True, unique=True, nullable=True)
+    # bcrypt hash of the login password. Nullable so a pre-invited user row
+    # can exist (with a password set at invite time) before first login.
+    password_hash: Mapped[str | None] = mapped_column(nullable=True)

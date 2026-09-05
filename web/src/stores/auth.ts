@@ -21,9 +21,9 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function login(): Promise<void> {
-    const { authorization_url } = await api.auth.loginUrl()
-    window.location.href = authorization_url
+  async function login(email: string, password: string): Promise<void> {
+    await api.auth.login(email, password)
+    await fetchMe()
   }
 
   async function logout(): Promise<void> {

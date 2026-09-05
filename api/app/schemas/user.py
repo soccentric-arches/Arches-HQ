@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models.enums import UserRole
 
@@ -9,6 +9,8 @@ from app.models.enums import UserRole
 class UserInvite(BaseModel):
     email: EmailStr
     role: UserRole = UserRole.viewer
+    # Initial login password, chosen by the inviting admin.
+    password: str = Field(min_length=8)
 
 
 class UserOut(BaseModel):
@@ -18,5 +20,4 @@ class UserOut(BaseModel):
     email: str
     role: UserRole
     created_at: datetime
-    # auth_subject_id deliberately excluded -- internal auth linkage, not
-    # application data (see python/fastapi.md: never leak internal auth state).
+    # password_hash deliberately excluded -- never leak credential material.

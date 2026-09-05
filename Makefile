@@ -1,22 +1,24 @@
 # Arches-HQ — top-level entry point.
-# Wraps: docker compose (Postgres/MinIO/Redis), the Python venv (api +
+# Wraps: docker compose (MinIO), the Python venv (api +
 # agent-gateway), and the Vue frontend. See IMPLEMENTATION_PLAN.md §0.
 
 .DEFAULT_GOAL := help
 
 SHELL := /bin/bash
 CURDIR := $(shell pwd)
+ROOT := $(CURDIR)
 VENV := $(CURDIR)/.venv
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 COMPOSE := docker compose -f infra/docker-compose.yml -p archeshq
 RUN_DIR := $(CURDIR)/.run
 
-DATABASE_URL ?= postgresql+asyncpg://archeshq:archeshq@localhost:5432/archeshq
-TEST_DATABASE_URL ?= postgresql+asyncpg://archeshq:archeshq@localhost:5432/archeshq_test
+DATABASE_URL ?= sqlite+aiosqlite:///$(ROOT)/storage/hq.sqlite
+TENANT ?= Dev Tenant
+TEST_DATABASE_URL ?= sqlite+aiosqlite:////tmp/archeshq-test.sqlite
 S3_ENDPOINT_URL ?= http://localhost:9000
 
-.PHONY: help doctor install db-up db-down migrate seed run stop logs test test-api test-gateway test-web lint lint-api lint-gateway lint-web build clean
+.PHONY: help doctor install db-up db-down migrate seed seed-devices run stop logs test test-api test-gateway test-web lint lint-api lint-gateway lint-web build clean
 
 
 
@@ -34,30 +36,27 @@ install: $(VENV)/bin/activate ## create venv, install api/agent-gateway/web deps
 	$(PIP) install --quiet -e ./api[dev] -e ./agent-gateway[dev]
 	cd web && npm install
 
-db-up: ## start Postgres/MinIO/Redis (docker compose)
+db-up: ## start MinIO (docker compose); HQ runs on SQLite in storage/
 	$(COMPOSE) up -d
-	@echo "waiting for postgres..."
-	@until docker exec $$($(COMPOSE) ps -q postgres) pg_isready -U archeshq >/dev/null 2>&1; do sleep 1; done
-	@docker exec $$($(COMPOSE) ps -q postgres) psql -U archeshq -d archeshq -tc \
-		"SELECT 1 FROM pg_database WHERE datname='archeshq_test'" | grep -q 1 || \
-		docker exec $$($(COMPOSE) ps -q postgres) createdb -U archeshq archeshq_test
 	@echo "waiting for minio..."
 	@until docker exec $$($(COMPOSE) ps -q minio) mc ready local >/dev/null 2>&1; do sleep 1; done
 	@docker run --rm --network archeshq_default -e MC_HOST_local=http://archeshq:archeshq-dev-secret@minio:9000 \
 		minio/mc mb -p local/archeshq >/dev/null 2>&1 || true
-	@echo "waiting for keycloak (can take ~30s on first boot)..."
-	@until curl -sf http://localhost:8081/realms/archeshq/.well-known/openid-configuration >/dev/null 2>&1; do sleep 2; done
-	@echo "postgres, minio (bucket: archeshq), redis, keycloak (realm: archeshq) ready"
+	@echo "minio ready (bucket: archeshq); HQ database: storage/hq.sqlite"
 
-db-down: ## stop them (data persists in docker volumes)
+db-down: ## stop them (data persists under storage/)
 	$(COMPOSE) down
 
 migrate: ## alembic upgrade head
 	ARCHESHQ_DATABASE_URL=$(DATABASE_URL) $(VENV)/bin/alembic upgrade head
 
 seed:
-	@test -n "$(EMAIL)" || { echo "usage: make seed EMAIL=you@example.com"; exit 1; }
-	cd api && ARCHESHQ_DATABASE_URL=$(DATABASE_URL) $(PY) -m scripts.seed_dev --email $(EMAIL)
+	@test -n "$(EMAIL)" || { echo "usage: make seed EMAIL=you@example.com PASSWORD=changeme123"; exit 1; }
+	@test -n "$(PASSWORD)" || { echo "usage: make seed EMAIL=you@example.com PASSWORD=changeme123"; exit 1; }
+	cd api && ARCHESHQ_DATABASE_URL=$(DATABASE_URL) $(PY) -m scripts.seed_dev --email $(EMAIL) --password $(PASSWORD)
+
+seed-devices: ## ensure the nine <platform>-0001 devices, remove any other device
+	cd api && ARCHESHQ_DATABASE_URL=$(DATABASE_URL) $(PY) -m scripts.seed_dev --devices-only --tenant "$(TENANT)"
 
 # Each service is launched as `(cd dir && exec env VARS nohup cmd) &` --
 # the `exec` makes the subshell replace its own process image with the
@@ -68,23 +67,18 @@ run: db-up migrate ## start db + api + agent-gateway + web in the background
 	@mkdir -p $(RUN_DIR)
 	@echo "starting api, agent-gateway, web..."
 	@(cd api && exec env ARCHESHQ_DATABASE_URL=$(DATABASE_URL) ARCHESHQ_S3_ENDPOINT_URL=$(S3_ENDPOINT_URL) \
-		ARCHESHQ_OIDC_ISSUER=http://$$(hostname -I | awk '{print $$1}'):8081/realms/archeshq \
 		nohup $(PY) -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > $(RUN_DIR)/api.log 2>&1) & echo $$! > $(RUN_DIR)/api.pid
 	@(cd agent-gateway && exec env ARCHESHQ_DATABASE_URL=$(DATABASE_URL) ARCHESHQ_S3_ENDPOINT_URL=$(S3_ENDPOINT_URL) \
 		nohup $(PY) -m gateway.server > $(RUN_DIR)/gateway.log 2>&1) & echo $$! > $(RUN_DIR)/gateway.pid
 	@(cd web && exec nohup ./node_modules/.bin/vite --host 0.0.0.0 --port 5173 > $(RUN_DIR)/web.log 2>&1) & echo $$! > $(RUN_DIR)/web.pid
 	@sleep 1
 	@LAN_IP=$$(hostname -I 2>/dev/null | awk '{print $$1}'); \
-	echo "web:      http://$$LAN_IP:5173   (use this on every device, including this host --"; \
-	echo "                                  login redirects always go to the LAN IP, so mixing"; \
-	echo "                                  it with http://localhost:5173 splits your session"; \
-	echo "                                  cookie across two origins)"; \
+	echo "web:      http://$$LAN_IP:5173   (open this on every device, including this host)"; \
 	echo "api:      http://$$LAN_IP:8000"; \
-	echo "keycloak: http://$$LAN_IP:8081/admin  (admin/admin)"; \
 	echo "gateway:  $$LAN_IP:50051 (gRPC)"; \
 	echo ""; \
 	echo "login:    admin@example.com / devpassword"; \
-	echo "          (first time: make seed EMAIL=admin@example.com to pre-invite it as admin)"; \
+	echo "          (first time: make seed EMAIL=admin@example.com PASSWORD=devpassword)"; \
 	echo ""; \
 	echo "logs:     make logs   |   stop:  make stop"
 

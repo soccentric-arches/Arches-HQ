@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, UTC
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,15 +11,19 @@ from app.config import get_settings
 from app.db.deps import get_db
 from app.models.device import Device
 from app.models.device_credential import DeviceCredential
-from app.models.enums import CredentialKind, PairingState, UserRole
+from app.models.enums import CommandKind, CredentialKind, PairingState, UserRole
+from app.models.pending_command import PendingCommand
 from app.schemas.common import Page
 from app.schemas.device import (
     DeviceCreate,
     DeviceCreateOut,
     DeviceListOut,
     DeviceOut,
+    DeviceRename,
 )
 from app.services import audit
+from app.services.device_scope import get_tenant_device_or_404
+from app.services.device_store import device_db_path, export_device, import_device
 from app.services.credentials import generate_token, hash_token
 from app.services.tenant_repo import TenantContext, TenantRepo
 
@@ -180,3 +185,179 @@ async def revoke_credential(
     await audit.record(db, ctx, "device.credential.revoke", target_device_id=device.id)
     await db.commit()
     return {"ok": True}
+
+
+@router.patch("/{device_id}", response_model=DeviceOut)
+async def rename_device(
+    device_id: UUID,
+    body: DeviceRename,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.operator)),
+):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "name must not be empty")
+
+    repo = TenantRepo(db, ctx)
+    device = await repo.get_or_404(Device, device_id)
+    if device is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "device not found")
+
+    device.name = name
+    await audit.record(
+        db, ctx, "device.rename", target_device_id=device.id, payload={"name": name}
+    )
+    await db.commit()
+    await db.refresh(device)
+    return DeviceOut.model_validate(device)
+
+
+@router.post("/{device_id}/export")
+async def export_device_data(
+    device_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.operator)),
+):
+    """Mirror this device's rows into its per-device SQLite file under the
+    storage root (storage/devices/<id>/device.sqlite). Idempotent.
+    """
+    repo = TenantRepo(db, ctx)
+    device = await repo.get_or_404(Device, device_id)
+    if device is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "device not found")
+
+    path = await export_device(db, device, get_settings().storage_dir)
+    await audit.record(db, ctx, "device.export", target_device_id=device.id)
+    await db.commit()
+    return {"ok": True, "path": str(path), "size_bytes": path.stat().st_size}
+
+
+@router.get("/{device_id}/export/download")
+async def download_device_export(
+    device_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.viewer)),
+):
+    repo = TenantRepo(db, ctx)
+    device = await repo.get_or_404(Device, device_id)
+    if device is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "device not found")
+
+    path = device_db_path(get_settings().storage_dir, device.id)
+    if not path.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no export yet -- run export first")
+    return FileResponse(
+        path,
+        media_type="application/x-sqlite3",
+        filename=f"device-{device.name}.sqlite",
+    )
+
+
+@router.post("/{device_id}/import")
+async def import_device_data(
+    device_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.admin)),
+):
+    """Restore rows from the device's SQLite file that are missing in
+    Postgres. Additive only; matched by primary key.
+    """
+    repo = TenantRepo(db, ctx)
+    device = await repo.get_or_404(Device, device_id)
+    if device is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "device not found")
+
+    try:
+        counts = await import_device(db, device, get_settings().storage_dir)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "no export found -- run export first"
+        ) from exc
+    await audit.record(db, ctx, "device.import", target_device_id=device.id, payload=counts)
+    await db.commit()
+    return {"ok": True, "imported": counts}
+
+
+@router.post("/{device_id}/reboot", status_code=status.HTTP_202_ACCEPTED)
+async def reboot_device(
+    device_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.operator)),
+):
+    """Queues a Reboot command; agent-gateway delivers it on the device's
+    next heartbeat (cross-process handoff, see PendingCommand).
+    """
+    await get_tenant_device_or_404(db, ctx, device_id)
+
+    command_id = f"reboot:{uuid4()}"
+    db.add(PendingCommand(device_id=device_id, command_id=command_id, kind=CommandKind.reboot))
+    await audit.record(db, ctx, "device.reboot.request", target_device_id=device_id)
+    await db.commit()
+    return {"ok": True, "command_id": command_id}
+
+
+@router.post("/{device_id}/shutdown", status_code=status.HTTP_202_ACCEPTED)
+async def shutdown_device(
+    device_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.operator)),
+):
+    """Queues a Shutdown command; agent-gateway delivers it on the device's
+    next heartbeat (cross-process handoff, see PendingCommand).
+    """
+    await get_tenant_device_or_404(db, ctx, device_id)
+
+    command_id = f"shutdown:{uuid4()}"
+    db.add(PendingCommand(device_id=device_id, command_id=command_id, kind=CommandKind.shutdown))
+    await audit.record(db, ctx, "device.shutdown.request", target_device_id=device_id)
+    await db.commit()
+    return {"ok": True, "command_id": command_id}
+
+
+@router.post("/{device_id}/factory-reset", status_code=status.HTTP_202_ACCEPTED)
+async def factory_reset_device(
+    device_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.admin)),
+):
+    """Queues a FactoryReset command; agent-gateway delivers it on the
+    device's next heartbeat (cross-process handoff, see PendingCommand).
+    The device wipes local state and must re-pair afterwards.
+    """
+    await get_tenant_device_or_404(db, ctx, device_id)
+
+    command_id = f"factory-reset:{uuid4()}"
+    db.add(
+        PendingCommand(device_id=device_id, command_id=command_id, kind=CommandKind.factory_reset)
+    )
+    await audit.record(db, ctx, "device.factory_reset.request", target_device_id=device_id)
+    await db.commit()
+    return {"ok": True, "command_id": command_id}
+
+
+@router.post("/{device_id}/disable", response_model=DeviceOut)
+async def disable_device(
+    device_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.admin)),
+):
+    """Immediately revokes every live credential and marks the device
+    disabled -- HQ refuses its connection even with a valid token.
+    """
+    repo = TenantRepo(db, ctx)
+    device = await repo.get_or_404(Device, device_id)
+    if device is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "device not found")
+
+    now = datetime.now(UTC)
+    await db.execute(
+        DeviceCredential.__table__.update()
+        .where(DeviceCredential.device_id == device.id, DeviceCredential.revoked_at.is_(None))
+        .values(revoked_at=now)
+    )
+    device.pairing_state = PairingState.disabled
+    device.online = False
+    await audit.record(db, ctx, "device.disable", target_device_id=device.id)
+    await db.commit()
+    await db.refresh(device)
+    return DeviceOut.model_validate(device)

@@ -3,6 +3,7 @@ stays readable. Each handler takes the open DB session for this frame and
 the device it belongs to.
 """
 
+import json
 import logging
 import uuid
 from datetime import datetime, UTC
@@ -13,13 +14,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.alarm import Alarm, AlarmRule
 from app.models.backup import Backup
 from app.models.device import Device
-from app.models.enums import AlarmState, FaultSeverity
+from app.models.enums import AlarmState, CommandKind, FaultSeverity
 from app.models.fault import Fault
 from app.models.log_bundle import LogBundle
+from app.models.pending_command import PendingCommand
 from app.models.telemetry import TelemetrySample
 from app.models.update import DeviceRolloutStatus, RolloutStatus, UpdateRollout, UpdateRolloutDevice
 from app.services.storage import new_object_id, object_key, presigned_upload_url
-from archeshq.agent_pb2 import FaultEvent, Location, LogUploadRequest, TelemetryBatch
+from archeshq.agent_pb2 import (
+    ApplyConfig,
+    ApplyUpdate,
+    Command,
+    FactoryReset,
+    FaultEvent,
+    Location,
+    LogUploadRequest,
+    Reboot,
+    Restore,
+    ServerFrame,
+    Shutdown,
+    TakeBackupNow,
+    TelemetryBatch,
+)
 
 logger = logging.getLogger("gateway.handlers")
 
@@ -163,6 +179,70 @@ async def handle_fault_event(session: AsyncSession, device: Device, event: Fault
     session.add(fault)
     await session.flush()
     await _evaluate_fault_alarms(session, device, fault)
+
+
+async def handle_agent_report(session: AsyncSession, device: Device, report_json: str) -> None:
+    """Store the device's state dump (hardware inventory, services, network
+    status) verbatim. The document shape is co-owned with
+    Arches-Configuration; the web UI renders it defensively.
+    """
+    try:
+        device.reported = json.loads(report_json)
+    except json.JSONDecodeError:
+        logger.warning("agent_report from device %s is not valid JSON; storing raw", device.id)
+        device.reported = {"raw": report_json}
+
+
+async def drain_pending_commands(session: AsyncSession, device_id: uuid.UUID) -> list[ServerFrame]:
+    """Deliver queued PendingCommand rows to a connected device.
+
+    The REST API and this gateway are separate deployables (no direct RPC
+    between them), so a command an operator triggers via the API is written
+    to pending_command and picked up here on the device's next
+    heartbeat/connection -- ARCHITECTURE.md §2, PendingCommand docstring.
+    Rows are marked delivered as they are converted, before the frames are
+    actually flushed to the wire: delivery is at-most-once per connection
+    and the device acks (CommandAck) for the durable outcome.
+    """
+    rows = (
+        await session.execute(
+            select(PendingCommand)
+            .where(PendingCommand.device_id == device_id, PendingCommand.delivered_at.is_(None))
+            .order_by(PendingCommand.created_at.asc())
+            .limit(50)
+        )
+    ).scalars().all()
+
+    frames: list[ServerFrame] = []
+    now = datetime.now(UTC)
+    for row in rows:
+        command = Command(command_id=row.command_id)
+        try:
+            if row.kind == CommandKind.take_backup_now:
+                command.take_backup_now.CopyFrom(TakeBackupNow())
+            elif row.kind == CommandKind.restore:
+                command.restore.CopyFrom(Restore(**row.payload))
+            elif row.kind == CommandKind.factory_reset:
+                command.factory_reset.CopyFrom(FactoryReset())
+            elif row.kind == CommandKind.apply_update:
+                command.apply_update.CopyFrom(ApplyUpdate(**row.payload))
+            elif row.kind == CommandKind.reboot:
+                command.reboot.CopyFrom(Reboot())
+            elif row.kind == CommandKind.shutdown:
+                command.shutdown.CopyFrom(Shutdown())
+            elif row.kind == CommandKind.apply_config:
+                command.apply_config.CopyFrom(ApplyConfig(section=row.payload.get("section", "")))
+            else:
+                logger.warning("pending command %s has unknown kind %s", row.command_id, row.kind)
+                row.delivered_at = now
+                continue
+        except (TypeError, ValueError):
+            logger.exception("pending command %s has malformed payload", row.command_id)
+            row.delivered_at = now
+            continue
+        row.delivered_at = now
+        frames.append(ServerFrame(command=command))
+    return frames
 
 
 async def handle_command_ack(

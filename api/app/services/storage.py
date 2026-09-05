@@ -26,7 +26,12 @@ def _client():
 
 
 def object_key(kind: str, device_id: str, object_id: str) -> str:
-    return f"{kind}/{device_id}/{object_id}"
+    """Per-device layout inside the bucket: every blob a device produces
+    (log bundles, backups, OTA artifacts it applies) lives under that
+    device's folder, so the object store mirrors the on-disk
+    storage/devices/<id>/ hierarchy.
+    """
+    return f"devices/{device_id}/{kind}/{object_id}"
 
 
 def presigned_upload_url(key: str, expires_in: int = 900) -> str:

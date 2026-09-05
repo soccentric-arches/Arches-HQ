@@ -8,7 +8,7 @@ from app.main import create_app
 
 TEST_DB_URL = os.environ.get(
     "ARCHESHQ_TEST_DATABASE_URL",
-    "postgresql+asyncpg://archeshq:archeshq@localhost:55432/archeshq_test",
+    "sqlite+aiosqlite:////tmp/archeshq-test.sqlite",
 )
 
 

@@ -13,14 +13,14 @@ below before reusing anything that looks like it belongs to the device side.
 
 ## Repo layout
 
-- api/ — FastAPI REST/WebSocket service (app/): auth (OIDC via Keycloak),
+- api/ — FastAPI REST/WebSocket service (app/): auth (email + password login),
   routers, SQLAlchemy models, Pydantic schemas, services. Tests in api/tests/.
 - agent-gateway/ — gRPC server devices connect to (persistent, device-initiated,
   token-based pairing — see proto/archeshq/agent.proto). Tests in
   agent-gateway/tests/.
 - web/ — Vue 3 + TypeScript frontend (Vite, vitest, eslint).
 - migrations/ — Alembic migrations (single history, no branches — see below).
-- infra/docker-compose.yml — Postgres, MinIO (S3), Redis, Keycloak for local dev.
+- infra/docker-compose.yml — Postgres, MinIO (S3), Redis for local dev.
 - proto/archeshq/ — HQ's own device-agent protocol (distinct from any
   Arches-HAL/Arches-Client proto).
 
@@ -29,18 +29,16 @@ below before reusing anything that looks like it belongs to the device side.
 ```
 make doctor    # check docker/python3/node are present
 make install   # venv + api/agent-gateway deps (pip -e ...[dev]) + web npm install
-make db-up     # start postgres/minio/redis/keycloak, create archeshq_test db
+make db-up     # start postgres/minio/redis, create archeshq_test db
 make migrate   # alembic upgrade head
-make seed EMAIL=you@example.com   # create a dev tenant + invite yourself as admin
+make seed EMAIL=you@example.com PASSWORD=changeme123   # dev tenant + admin login
 make run       # start api (:8000) + agent-gateway (:50051) + web (:5173) in background
 make logs      # tail background service logs
 make stop      # stop what `make run` started (db keeps running)
-make db-down   # stop db/minio/redis/keycloak
+make db-down   # stop db/minio/redis
 ```
 
-Login on the printed LAN IP, not localhost — Keycloak redirects always go to
-the LAN IP, and mixing origins splits the session cookie. Default dev login is
-admin@example.com / devpassword (after seeding).
+Sign in at the printed LAN URL with the seeded email + password.
 
 ## Tests and lint
 
