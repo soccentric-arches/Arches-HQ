@@ -122,6 +122,24 @@ export interface DeviceAlarmListResponse {
   page: Page
 }
 
+export interface ActiveAlarm {
+  id: string
+  device_id: string
+  device_name: string
+  major_id: number
+  sub_section: number
+  fault_type: number
+  severity: number
+  alarm_code: number
+  state: 'active' | 'acknowledged' | 'resolved'
+  triggered_at: string
+}
+
+export interface ActiveAlarmListResponse {
+  count: number
+  items: ActiveAlarm[]
+}
+
 export interface AlarmRule {
   id: string
   name: string

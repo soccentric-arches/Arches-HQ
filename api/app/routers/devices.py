@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_role
@@ -63,7 +63,17 @@ async def list_devices(
     repo = TenantRepo(db, ctx)
     stmt = repo.scoped(Device)
     if q:
-        stmt = stmt.where(Device.name.ilike(f"%{q}%"))
+        # Search across every identity field the UI's global search exposes:
+        # name, serial, IP, hostname.
+        like = f"%{q}%"
+        stmt = stmt.where(
+            or_(
+                Device.name.ilike(like),
+                Device.serial.ilike(like),
+                Device.ip_address.ilike(like),
+                Device.hostname.ilike(like),
+            )
+        )
 
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
 
@@ -260,7 +270,7 @@ async def import_device_data(
     ctx: TenantContext = Depends(require_role(UserRole.admin)),
 ):
     """Restore rows from the device's SQLite file that are missing in
-    Postgres. Additive only; matched by primary key.
+    the HQ database. Additive only; matched by primary key.
     """
     repo = TenantRepo(db, ctx)
     device = await repo.get_or_404(Device, device_id)

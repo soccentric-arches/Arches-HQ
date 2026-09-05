@@ -1,4 +1,5 @@
 import type {
+  ActiveAlarmListResponse,
   Alarm,
   AlarmRule,
   AuditLogListResponse,
@@ -126,6 +127,7 @@ export const api = {
     },
   },
   alarms: {
+    active: () => request<ActiveAlarmListResponse>('/alarms/active'),
     listForDevice: (deviceId: string, since?: string) => {
       const qs = since ? `?since=${encodeURIComponent(since)}` : ''
       return request<DeviceAlarmListResponse>(`/devices/${deviceId}/alarms${qs}`)

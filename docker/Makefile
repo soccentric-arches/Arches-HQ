@@ -9,8 +9,9 @@
 #   ps              show stack status
 #   clean           remove built images
 #
-# Stateful deps (postgres/redis/minio) come from infra/docker-compose.yml
-# during local dev; docker-compose.yml in this dir is the full production stack.
+# The stateful dep (minio) comes from infra/docker-compose.yml during local
+# dev; docker-compose.yml in this dir is the full production stack.
+# The HQ database is SQLite under storage/ -- no database service needed.
 
 # Path anchors (independent of where make is invoked from, e.g. `make -C docker`):
 #   DOCKER = this Makefile's directory (Dockerfiles + compose file)

@@ -38,7 +38,7 @@ class DeviceAlarm(Base, UUIDPKMixin):
     severity: Mapped[int] = mapped_column(SmallInteger)
     # The raw packed 4-byte code, stored for traceability/round-trip checks.
     # BigInteger (not Integer): the 4-byte code is unsigned and 0xFFFFFFFF
-    # (4294967295) overflows Postgres INTEGER (int32, max ~2.1e9).
+    # (4294967295) overflows a 32-bit signed integer (max ~2.1e9).
     alarm_code: Mapped[int] = mapped_column(BigInteger)
     # Reuse the existing AlarmState enum so `clear` can set it to `resolved`.
     state: Mapped[AlarmState] = mapped_column(

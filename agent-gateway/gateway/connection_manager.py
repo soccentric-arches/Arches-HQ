@@ -1,9 +1,9 @@
 """In-memory device_id -> outbound-frame-queue map.
 
-Single-instance only for now -- IMPLEMENTATION_PLAN §2.1 notes this becomes
-Redis-backed if the gateway is horizontally scaled (a command pushed to a
-device connected to a *different* gateway replica wouldn't reach it
-otherwise). Not needed until there's more than one gateway replica.
+Single-instance only for now -- if the gateway is horizontally scaled this
+needs a shared backing store (a command pushed to a device connected to a
+*different* gateway replica wouldn't reach it otherwise). Not needed until
+there's more than one gateway replica.
 """
 
 import asyncio

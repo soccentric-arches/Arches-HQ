@@ -6,7 +6,8 @@ description: How to build, run, test, and navigate the Arches-HQ repo (cloud fle
 # Working in Arches-HQ
 
 Arches-HQ is a multi-tenant cloud fleet-management app for Arches devices:
-API + Postgres + browser UI, plus a gRPC gateway that devices dial into. It is
+API + SQLite (HQ db + per-device db files under storage/) + browser UI, plus a gRPC
+gateway that devices dial into. It is
 not the on-device WebConfig UI (that's Arches-Configuration) and it does
 not link Arches-HAL or reuse its protos — see "Architectural boundaries"
 below before reusing anything that looks like it belongs to the device side.
@@ -20,7 +21,8 @@ below before reusing anything that looks like it belongs to the device side.
   agent-gateway/tests/.
 - web/ — Vue 3 + TypeScript frontend (Vite, vitest, eslint).
 - migrations/ — Alembic migrations (single history, no branches — see below).
-- infra/docker-compose.yml — Postgres, MinIO (S3), Redis for local dev.
+- infra/docker-compose.yml — MinIO (S3) for local dev; the HQ database is
+  SQLite at storage/hq.sqlite.
 - proto/archeshq/ — HQ's own device-agent protocol (distinct from any
   Arches-HAL/Arches-Client proto).
 
@@ -29,13 +31,13 @@ below before reusing anything that looks like it belongs to the device side.
 ```
 make doctor    # check docker/python3/node are present
 make install   # venv + api/agent-gateway deps (pip -e ...[dev]) + web npm install
-make db-up     # start postgres/minio/redis, create archeshq_test db
+make db-up     # start minio (blobs); HQ database is SQLite in storage/
 make migrate   # alembic upgrade head
 make seed EMAIL=you@example.com PASSWORD=changeme123   # dev tenant + admin login
 make run       # start api (:8000) + agent-gateway (:50051) + web (:5173) in background
 make logs      # tail background service logs
 make stop      # stop what `make run` started (db keeps running)
-make db-down   # stop db/minio/redis
+make db-down   # stop minio
 ```
 
 Sign in at the printed LAN URL with the seeded email + password.

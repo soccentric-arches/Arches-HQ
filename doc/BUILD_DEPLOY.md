@@ -2,7 +2,7 @@
 
 ## 1. Purpose and scope
 
-Arches-HQ is a local multi-service control plane: Python API and agent gateway, a Vue/Vite web frontend, and Docker Compose services for Postgres, MinIO, and Redis. The root Makefile orchestrates the complete developer stack.
+Arches-HQ is a local multi-service control plane: Python API and agent gateway, a Vue/Vite web frontend, and a Docker Compose service for MinIO (object storage); the HQ database is SQLite under storage/. The root Makefile orchestrates the complete developer stack.
 
 ## 2. Prerequisites
 

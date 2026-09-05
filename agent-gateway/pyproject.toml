@@ -7,7 +7,6 @@ dependencies = [
     "grpcio>=1.66",
     "protobuf>=5.28",
     "archeshq-api",
-    "arq>=0.26",
 ]
 
 [project.optional-dependencies]

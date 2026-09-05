@@ -13,8 +13,7 @@ class Guid(TypeDecorator):
     """Platform-independent UUID column.
 
     Accepts `uuid.UUID` or canonical string on bind (the gateway receives
-    device ids as strings off the wire), stores as native Uuid on Postgres
-    and CHAR(32) on SQLite.
+    device ids as strings off the wire); stores as CHAR(32) hex on SQLite.
     """
 
     impl = String
@@ -34,7 +33,7 @@ class Guid(TypeDecorator):
 class TimestampTZ(TypeDecorator):
     """Timezone-aware UTC timestamp. SQLite stores naive text, so values
     are normalized to UTC ISO-8601 on bind and re-hydrated with tzinfo on
-    result (Postgres keeps its native timestamptz behavior)."""
+    result."""
 
     impl = String
     cache_ok = True

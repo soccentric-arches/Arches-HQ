@@ -189,3 +189,39 @@ async def test_clear_unknown_alarm_404(client, db_session):
     login_as(client, admin)
     resp = await client.post(f"/devices/{device.id}/alarms/{uuid4()}/clear")
     assert resp.status_code == 404, resp.text
+
+
+async def test_active_alarms_fleet_feed(client, db_session):
+    """GET /alarms/active -- fleet-wide feed powering the top-bar bell."""
+    from app.models.device import Device
+    from app.models.device_alarm import DeviceAlarm
+
+    tenant = await make_tenant(db_session)
+    admin = await make_user(db_session, tenant, UserRole.admin)
+    d1 = Device(tenant_id=tenant.id, name="alpha")
+    d2 = Device(tenant_id=tenant.id, name="beta")
+    db_session.add_all([d1, d2])
+    await db_session.flush()
+    from datetime import datetime, UTC
+
+    now = datetime.now(UTC)
+    db_session.add_all(
+        [
+            DeviceAlarm(device_id=d1.id, major_id=1, sub_section=2, fault_type=3, severity=4,
+                        alarm_code=0x01020304, triggered_at=now),
+            DeviceAlarm(
+                device_id=d2.id, major_id=9, sub_section=8, fault_type=7, severity=6,
+                alarm_code=0x09080706, state="resolved", triggered_at=now,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    login_as(client, admin)
+    resp = await client.get("/alarms/active")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["count"] == 1
+    assert len(body["items"]) == 1
+    assert body["items"][0]["device_name"] == "alpha"
+    assert body["items"][0]["alarm_code"] == 0x01020304

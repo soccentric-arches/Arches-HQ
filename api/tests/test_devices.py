@@ -212,3 +212,39 @@ async def test_device_out_includes_agent_version_and_reported(client, db_session
     item = resp.json()["items"][0]
     assert item["agent_version"] == "agent 1.2.0"
     assert item["reported"]["hardware"]["soc"] == "sm8650"
+
+
+async def test_device_search_matches_serial_ip_hostname(client, db_session):
+    tenant = await make_tenant(db_session)
+    admin = await make_user(db_session, tenant, UserRole.admin)
+    db_session.add_all(
+        [
+            Device(
+                tenant_id=tenant.id,
+                name="unit-a",
+                serial="SN-778899",
+                ip_address="10.1.1.10",
+                hostname="alpha.local",
+            ),
+            Device(
+                tenant_id=tenant.id,
+                name="unit-b",
+                serial="SN-111222",
+                ip_address="10.1.1.77",
+                hostname="beta.local",
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    login_as(client, admin)
+    for query, expected in [
+        ("SN-778899", "unit-a"),      # by serial
+        ("10.1.1.77", "unit-b"),      # by IP
+        ("beta.local", "unit-b"),     # by hostname
+        ("unit-a", "unit-a"),         # by name (unchanged behavior)
+    ]:
+        resp = await client.get("/devices", params={"q": query})
+        assert resp.status_code == 200, query
+        names = [d["name"] for d in resp.json()["items"]]
+        assert names == [expected], query

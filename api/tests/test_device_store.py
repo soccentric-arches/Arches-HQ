@@ -66,7 +66,7 @@ async def test_import_restores_missing_rows(client, db_session, monkeypatch, tmp
     login_as(client, admin)
     assert (await client.post(f"/devices/{device.id}/export")).status_code == 200
 
-    # Simulate data loss: wipe the device's telemetry from Postgres.
+    # Simulate data loss: wipe the device's telemetry from the HQ database.
     await db_session.execute(
         TelemetrySample.__table__.delete().where(TelemetrySample.device_id == device.id)
     )

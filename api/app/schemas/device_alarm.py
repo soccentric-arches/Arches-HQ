@@ -40,3 +40,23 @@ class DeviceAlarmOut(BaseModel):
 class DeviceAlarmListOut(BaseModel):
     items: list[DeviceAlarmOut]
     page: Page
+
+
+class ActiveAlarmOut(BaseModel):
+    """Fleet-wide active alarm for the top-bar bell / overview page."""
+
+    id: UUID
+    device_id: UUID
+    device_name: str
+    major_id: int
+    sub_section: int
+    fault_type: int
+    severity: int
+    alarm_code: int
+    state: AlarmState
+    triggered_at: datetime
+
+
+class ActiveAlarmListOut(BaseModel):
+    count: int
+    items: list[ActiveAlarmOut]

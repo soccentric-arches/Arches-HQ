@@ -13,7 +13,13 @@ from app.models.device_alarm import DeviceAlarm
 from app.models.enums import AlarmState, UserRole
 from app.schemas.alarm import AlarmOut, AlarmRuleCreate, AlarmRuleOut
 from app.schemas.common import Page
-from app.schemas.device_alarm import DeviceAlarmIn, DeviceAlarmListOut, DeviceAlarmOut
+from app.schemas.device_alarm import (
+    ActiveAlarmListOut,
+    ActiveAlarmOut,
+    DeviceAlarmIn,
+    DeviceAlarmListOut,
+    DeviceAlarmOut,
+)
 from app.services import audit
 from app.services.device_scope import get_tenant_device_or_404
 from app.services.tenant_repo import TenantContext, TenantRepo
@@ -142,6 +148,54 @@ async def _get_tenant_alarm_or_404(db: AsyncSession, ctx: TenantContext, alarm_i
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "alarm not found")
     return row
+
+
+@alarms_router.get("/active", response_model=ActiveAlarmListOut)
+async def list_active_alarms(
+    limit: int = Query(default=20, le=100),
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.viewer)),
+):
+    """Fleet-wide active device alarms, newest first, with device names.
+
+    Powers the top-bar alert bell (count + dropdown) and the overview page.
+    """
+    stmt = (
+        select(DeviceAlarm, Device.name)
+        .join(Device, DeviceAlarm.device_id == Device.id)
+        .where(
+            DeviceAlarm.state == AlarmState.active,
+            Device.tenant_id == ctx.tenant_id,
+        )
+        .order_by(DeviceAlarm.triggered_at.desc())
+        .limit(limit)
+    )
+    rows = (await db.execute(stmt)).all()
+    total = (
+        await db.execute(
+            select(func.count())
+            .select_from(DeviceAlarm)
+            .join(Device, DeviceAlarm.device_id == Device.id)
+            .where(DeviceAlarm.state == AlarmState.active, Device.tenant_id == ctx.tenant_id)
+        )
+    ).scalar_one()
+
+    items = [
+        ActiveAlarmOut(
+            id=a.id,
+            device_id=a.device_id,
+            device_name=name,
+            major_id=a.major_id,
+            sub_section=a.sub_section,
+            fault_type=a.fault_type,
+            severity=a.severity,
+            alarm_code=a.alarm_code,
+            state=a.state,
+            triggered_at=a.triggered_at,
+        )
+        for a, name in rows
+    ]
+    return ActiveAlarmListOut(count=total, items=items)
 
 
 @alarms_router.post("/{alarm_id}/acknowledge", response_model=AlarmOut)

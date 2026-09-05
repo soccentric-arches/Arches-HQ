@@ -1,7 +1,7 @@
 # Arches-HQ — specs
 
 Remote: `git@github.com:soccentric-arches/Arches-HQ.git`
-Stack: FastAPI + Postgres + web UI. Design docs: `PLAN.md` (roadmap, phases, decisions), `ARCHITECTURE.md` (system design, data model, protocols, security).
+Stack: FastAPI + SQLite (per-device SQLite mirrors under storage/) + web UI. Design docs: `PLAN.md` (roadmap, phases, decisions), `ARCHITECTURE.md` (system design, data model, protocols, security).
 
 Multi-tenant cloud service for managing paired Arches devices: provisioning, updates,
 backup/restore, disable, factory reset, location tracking, telemetry, faults and alarms.

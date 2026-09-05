@@ -1,8 +1,8 @@
 """Near-real-time device online/offline push to the browser.
 
 agent-gateway (a separate process) is the thing actually flipping
-`device.online` in Postgres as devices connect/disconnect. Rather than a
-cross-process pub/sub (Postgres LISTEN/NOTIFY, Redis), this API process
+`device.online` in the HQ database as devices connect/disconnect. Rather than a
+cross-process pub/sub, this API process
 runs a short-interval poll-and-diff loop per tenant with at least one
 subscribed WebSocket and only pushes rows whose (online, last_seen_at)
 changed since the last poll -- simple, and "near-real-time" (a few seconds

@@ -29,13 +29,10 @@ class Settings(BaseSettings):
     s3_bucket: str = "archeshq"
     s3_region: str = "us-east-1"
 
-    # Filesystem storage root for everything persistent that is not the
-    # Postgres data dir: per-device folders (SQLite mirror, exports) and
-    # OTA artifact staging. Docker bind-mounts it from ./storage.
+    # Filesystem storage root for all persistent data: the HQ SQLite
+    # database, per-device folders (SQLite mirror, exports) and OTA
+    # artifact staging. Docker bind-mounts it from ./storage.
     storage_dir: str = str(_REPO_ROOT / "storage")
-
-    # Redis (arq background jobs).
-    redis_url: str = "redis://localhost:6379/0"
 
     # Presence / heartbeat.
     heartbeat_interval_s: int = 30

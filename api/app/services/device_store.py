@@ -3,15 +3,15 @@
 Layout under ``settings.storage_dir`` (Docker bind-mounts ./storage):
 
     storage/
-    ├── postgres/         # Postgres data dir (docker bind mount)
+    ├── hq.sqlite         # the HQ database (SQLite, alembic-managed)
     ├── minio/            # MinIO object store root (docker bind mount)
     ├── ota/              # OTA artifact staging area (fleet-level images)
     └── devices/<uuid>/   # one folder per device:
         └── device.sqlite #    portable SQLite mirror of the device's data
 
 The SQLite file is the import/backup unit: export_device() upserts the
-device's rows from Postgres (idempotent, INSERT OR REPLACE by row id), and
-import_device() reads rows back into Postgres that are missing there. The
+device's rows from the HQ database (idempotent, INSERT OR REPLACE by row id), and
+import_device() reads rows back into the HQ database that are missing there. The
 file can be copied off the server and later restored.
 """
 
@@ -89,7 +89,7 @@ def _upsert(conn: sqlite3.Connection, table: str, row: dict) -> None:
 
 
 async def export_device(session: AsyncSession, device: Device, storage_dir: str | Path) -> Path:
-    """Mirror the device's Postgres rows into its SQLite file. Idempotent:
+    """Mirror the device's database rows into its SQLite file. Idempotent:
     repeated exports refresh the same file (INSERT OR REPLACE by id)."""
     db_path = device_db_path(storage_dir, device.id)
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -237,8 +237,8 @@ async def export_device(session: AsyncSession, device: Device, storage_dir: str 
 
 async def import_device(session: AsyncSession, device: Device, storage_dir: str | Path) -> dict:
     """Restore rows from the device's SQLite file that are missing in
-    Postgres (matched by primary key). Returns per-table insert counts.
-    Only additive: nothing in Postgres is overwritten or deleted."""
+    HQ database (matched by primary key). Returns per-table insert counts.
+    Only additive: nothing already stored is overwritten or deleted."""
     db_path = device_db_path(storage_dir, device.id)
     if not db_path.exists():
         raise FileNotFoundError(f"no export found at {db_path}")
