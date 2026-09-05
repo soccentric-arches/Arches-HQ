@@ -6,7 +6,7 @@ the per-device rollout status -- see gateway/handlers.py.
 """
 
 from datetime import datetime, UTC
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -19,6 +19,7 @@ from app.models.device import Device
 from app.models.device_group import DeviceGroup, DeviceGroupMember
 from app.models.enums import CommandKind, PairingState, RolloutStatus, RolloutTarget, UserRole
 from app.models.pending_command import PendingCommand
+from app.models.enums import DeviceRolloutStatus
 from app.models.update import UpdateArtifact, UpdateRollout, UpdateRolloutDevice
 from app.schemas.common import Page
 from app.services import audit

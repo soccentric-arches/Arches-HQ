@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_role
@@ -51,7 +52,17 @@ async def list_groups(
     ctx: TenantContext = Depends(require_role(UserRole.viewer)),
 ):
     repo = TenantRepo(db, ctx)
-    groups = (await db.execute(repo.scoped(DeviceGroup).order_by(DeviceGroup.name))).scalars().all()
+    groups = (
+        (
+            await db.execute(
+                repo.scoped(DeviceGroup)
+                .options(selectinload(DeviceGroup.members))
+                .order_by(DeviceGroup.name)
+            )
+        )
+        .scalars()
+        .all()
+    )
     return DeviceGroupListOut(items=[_group_out(g) for g in groups])
 
 
@@ -78,7 +89,13 @@ async def create_group(
     db.add(group)
     await audit.record(db, ctx, "device_group.create", payload={"name": name})
     await db.commit()
-    await db.refresh(group)
+    group = (
+        await db.execute(
+            repo.scoped(DeviceGroup)
+            .options(selectinload(DeviceGroup.members))
+            .where(DeviceGroup.id == group.id)
+        )
+    ).scalar_one()
     return _group_out(group)
 
 
@@ -140,5 +157,11 @@ async def set_members(
         payload={"group": group.name, "count": len(devices)},
     )
     await db.commit()
-    await db.refresh(group)
+    group = (
+        await db.execute(
+            repo.scoped(DeviceGroup)
+            .options(selectinload(DeviceGroup.members))
+            .where(DeviceGroup.id == group.id)
+        )
+    ).scalar_one()
     return _group_out(group)

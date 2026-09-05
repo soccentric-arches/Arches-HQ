@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { KeyRound } from 'lucide-vue-next'
 import { api, ApiError } from '@/lib/api'
+import type { DeviceGroup } from '@/lib/types'
 import type { Device } from '@/lib/types'
 import { useAuthStore } from '@/stores/auth'
 import { useDeviceConfig } from '@/lib/useDeviceConfig'
@@ -76,6 +77,50 @@ async function revokeCredential() {
   }
 }
 
+// --- groups ---
+const groups = ref<DeviceGroup[]>([])
+const groupsBusy = ref(false)
+
+async function loadGroups() {
+  try {
+    const res = await api.deviceGroups.list()
+    groups.value = res.items
+  } catch {
+    groups.value = []
+  }
+}
+
+async function toggleGroup(group: DeviceGroup) {
+  groupsBusy.value = true
+  try {
+    const member = group.device_ids.includes(props.device.id)
+    const next = member
+      ? group.device_ids.filter((id) => id !== props.device.id)
+      : [...group.device_ids, props.device.id]
+    const res = await api.deviceGroups.setMembers(group.id, next)
+    groups.value = groups.value.map((g) => (g.id === res.id ? res : g))
+  } catch {
+    /* keep prior state on failure */
+  } finally {
+    groupsBusy.value = false
+  }
+}
+
+async function createGroupAndAdd() {
+  const name = prompt('New group name:')
+  if (!name?.trim()) return
+  groupsBusy.value = true
+  try {
+    const res = await api.deviceGroups.create(name.trim())
+    await api.deviceGroups.setMembers(res.id, [props.device.id])
+    await loadGroups()
+  } catch {
+    /* ignore */
+  } finally {
+    groupsBusy.value = false
+  }
+}
+
 // --- export / import (per-device SQLite) ---
 const exporting = ref(false)
 const importing = ref(false)
@@ -134,6 +179,7 @@ watch(
   () => props.device.name,
   (v) => (name.value = v),
 )
+onMounted(loadGroups)
 </script>
 
 <template>
@@ -194,6 +240,36 @@ watch(
         </div>
         <span v-if="sys.error.value" class="mt-1 text-sm text-danger">{{ sys.error.value }}</span>
       </div>
+    </Card>
+
+    <Card class="p-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-semibold">Groups</h3>
+        <Button size="sm" variant="secondary" :disabled="groupsBusy" @click="createGroupAndAdd">
+          New group with this device
+        </Button>
+      </div>
+      <p class="mt-1 text-sm text-muted-foreground">
+        Membership for deployment targeting. Create more groups on the Deployments page flow.
+      </p>
+      <p v-if="groups.length === 0" class="mt-3 text-sm text-muted-foreground">
+        No groups yet — use “New group with this device” above.
+      </p>
+      <ul v-else class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <li v-for="g in groups" :key="g.id">
+          <label class="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              class="accent-[var(--color-accent)]"
+              :checked="g.device_ids.includes(props.device.id)"
+              :disabled="groupsBusy"
+              @change="toggleGroup(g)"
+            />
+            {{ g.name }}
+            <span class="ml-auto text-xs text-muted-foreground">{{ g.device_ids.length }}</span>
+          </label>
+        </li>
+      </ul>
     </Card>
 
     <Card v-if="auth.hasRole('admin')" class="p-4">

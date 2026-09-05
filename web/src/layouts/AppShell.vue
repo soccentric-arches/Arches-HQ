@@ -41,9 +41,9 @@ const navLinks = computed(() => {
       active: route.name === 'deployments',
     },
     {
-      to: { name: 'alarm-rules' },
+      to: { name: 'alerts' },
       label: 'Alerts',
-      active: route.name === 'alarm-rules',
+      active: route.name === 'alerts' || route.name === 'alarm-rules',
     },
     {
       to: { name: 'settings' },

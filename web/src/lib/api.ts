@@ -1,6 +1,7 @@
 import type {
   ActiveAlarmListResponse,
   Alarm,
+  DeviceGroup,
   AlarmRule,
   AuditLogListResponse,
   Backup,
@@ -113,12 +114,36 @@ export const api = {
       }),
     downloadExportUrl: (id: string) => `/api/devices/${id}/export/download`,
   },
+  deviceGroups: {
+    list: () => request<{ items: DeviceGroup[] }>('/device-groups'),
+    create: (name: string) =>
+      request<DeviceGroup>('/device-groups', { method: 'POST', body: JSON.stringify({ name }) }),
+    delete: (id: string) => request<void>(`/device-groups/${id}`, { method: 'DELETE' }),
+    setMembers: (id: string, device_ids: string[]) =>
+      request<DeviceGroup>(`/device-groups/${id}/members`, {
+        method: 'PUT',
+        body: JSON.stringify({ device_ids }),
+      }),
+  },
   updates: {
     listArtifacts: () => request<UpdateArtifactListResponse>('/update/artifacts'),
     createArtifact: (body: Omit<UpdateArtifact, 'id'>) =>
       request<UpdateArtifact>('/update/artifacts', { method: 'POST', body: JSON.stringify(body) }),
     listRollouts: () => request<UpdateRolloutListResponse>('/update/rollouts'),
-    createRollout: (body: { artifact_id: string; target: RolloutTarget; device_ids?: string[] }) =>
+    abortRollout: (id: string) =>
+      request<{ ok: boolean; aborted_devices: number }>(`/update/rollouts/${id}/abort`, {
+        method: 'POST',
+      }),
+    retryRollout: (id: string) =>
+      request<{ ok: boolean; retried_devices: number }>(`/update/rollouts/${id}/retry`, {
+        method: 'POST',
+      }),
+    createRollout: (body: {
+      artifact_id: string
+      target: RolloutTarget
+      device_ids?: string[]
+      device_group_id?: string
+    }) =>
       request<{ ok: boolean; rollout_id: string; device_count: number }>('/update/rollouts', {
         method: 'POST',
         body: JSON.stringify(body),

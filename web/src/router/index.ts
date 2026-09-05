@@ -22,6 +22,11 @@ const router = createRouter({
       component: () => import('@/views/SettingsView.vue'),
     },
     {
+      path: '/alerts',
+      name: 'alerts',
+      component: () => import('@/views/AlertsView.vue'),
+    },
+    {
       path: '/deployments',
       name: 'deployments',
       component: () => import('@/views/DeploymentsView.vue'),

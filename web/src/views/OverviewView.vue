@@ -35,6 +35,24 @@ const versionSpread = computed(() => {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])
 })
 
+// Fleet health score: online ratio + alarm pressure + rollout failures.
+const healthScore = computed(() => {
+  if (stats.value.total === 0) return null
+  const onlineScore = stats.value.online / stats.value.total
+  const alarmPenalty = Math.min(1, activeAlarmsCount.value / 10)
+  const failed = rollouts.value.reduce(
+    (n, r) => n + r.devices.filter((d) => d.status === 'failed').length,
+    0,
+  )
+  const rolloutPenalty = Math.min(1, failed / Math.max(1, rollouts.value.length))
+  return Math.round((onlineScore * 0.6 + (1 - alarmPenalty) * 0.25 + (1 - rolloutPenalty) * 0.15) * 100)
+})
+
+function healthTone(score: number | null) {
+  if (score === null) return 'neutral'
+  return score >= 80 ? 'success' : score >= 50 ? 'warning' : 'danger'
+}
+
 // Platform family breakdown — fleet devices are named <platform>-0001.
 const platformFamilies = computed(() => {
   const map = new Map<string, { total: number; online: number }>()
@@ -171,10 +189,15 @@ onUnmounted(() => {
         </RouterLink>
         <Card class="p-4">
           <p class="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            <Activity class="h-3.5 w-3.5" /> Pairing queue
+            <Activity class="h-3.5 w-3.5" /> Fleet health
           </p>
-          <p class="mt-2 text-2xl font-semibold">{{ stats.pending }}</p>
-          <p class="mt-1 text-xs text-muted-foreground">devices awaiting pairing</p>
+          <p class="mt-2 text-2xl font-semibold">
+            {{ healthScore === null ? '—' : healthScore }}
+            <span v-if="healthScore !== null" class="text-sm text-muted-foreground">/ 100</span>
+          </p>
+          <p class="mt-1 text-xs text-muted-foreground">
+            <Badge :tone="healthTone(healthScore)">{{ healthScore === null ? 'n/a' : 'computed' }}</Badge>
+          </p>
         </Card>
       </div>
 

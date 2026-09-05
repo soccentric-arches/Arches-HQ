@@ -43,6 +43,12 @@ export interface DeviceConfig {
   updated_at: string
 }
 
+export interface DeviceGroup {
+  id: string
+  name: string
+  device_ids: string[]
+}
+
 export interface DeviceListResponse {
   items: Device[]
   page: Page
