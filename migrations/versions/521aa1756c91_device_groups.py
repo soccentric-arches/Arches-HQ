@@ -10,6 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
+from app.db.base import Guid, TimestampTZ
+
 
 # revision identifiers, used by Alembic.
 revision: str = '521aa1756c91'
@@ -24,8 +26,8 @@ def upgrade() -> None:
     op.create_table('device_group',
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('name', sa.String(length=64), nullable=False),
-    sa.Column('id', app.db.base.Guid(), nullable=False),
-    sa.Column('created_at', app.db.base.TimestampTZ(), nullable=False),
+    sa.Column('id', Guid(), nullable=False),
+    sa.Column('created_at', TimestampTZ(), nullable=False),
     sa.ForeignKeyConstraint(['tenant_id'], ['tenant.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('tenant_id', 'name', name='uq_device_group_tenant_name')

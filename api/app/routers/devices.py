@@ -224,6 +224,26 @@ async def rename_device(
     return DeviceOut.model_validate(device)
 
 
+@router.delete("/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_device(
+    device_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.admin)),
+):
+    """Decommission: remove the device and all of its data from HQ
+    (credentials, telemetry, alarms, config). Irreversible; audited."""
+    repo = TenantRepo(db, ctx)
+    device = await repo.get_or_404(Device, device_id)
+    if device is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "device not found")
+
+    name = device.name
+    await db.delete(device)
+    await audit.record(db, ctx, "device.delete", payload={"name": name})
+    await db.commit()
+    return {"ok": True}
+
+
 @router.post("/{device_id}/export")
 async def export_device_data(
     device_id: UUID,
