@@ -6,6 +6,7 @@ from app.models.device import Device
 from app.models.device_credential import DeviceCredential
 from app.models.device_config import DeviceConfig
 from app.models.device_group import DeviceGroup, DeviceGroupMember
+from app.models.device_tag import DeviceTag
 from app.models.fault import Fault
 from app.models.log_bundle import LogBundle
 from app.models.pending_command import PendingCommand
@@ -25,6 +26,7 @@ __all__ = [
     "DeviceConfig",
     "DeviceGroup",
     "DeviceGroupMember",
+    "DeviceTag",
     "Fault",
     "LogBundle",
     "PendingCommand",

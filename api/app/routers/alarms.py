@@ -12,6 +12,7 @@ from app.models.device import Device
 from app.models.device_alarm import DeviceAlarm
 from app.models.enums import AlarmState, UserRole
 from app.schemas.alarm import AlarmOut, AlarmRuleCreate, AlarmRuleOut
+from app.schemas.alarm_history import AlarmHistoryListOut
 from app.schemas.common import Page
 from app.schemas.device_alarm import (
     ActiveAlarmListOut,
@@ -148,6 +149,31 @@ async def _get_tenant_alarm_or_404(db: AsyncSession, ctx: TenantContext, alarm_i
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "alarm not found")
     return row
+
+
+@alarms_router.get("", response_model=AlarmHistoryListOut)
+async def list_rule_alarms(
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require_role(UserRole.viewer)),
+):
+    """Rule-based alarm history (the pre-existing `alarm` table), newest
+    first, with device names for the Alerts page."""
+    device_alias = Device
+    stmt = (
+        select(Alarm, device_alias.name)
+        .join(device_alias, Alarm.device_id == device_alias.id)
+        .where(device_alias.tenant_id == ctx.tenant_id)
+        .order_by(Alarm.triggered_at.desc())
+    )
+    total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
+    rows = (await db.execute(stmt.limit(limit).offset(offset))).all()
+    items = []
+    for alarm, device_name in rows:
+        out = AlarmOut.model_validate(alarm)
+        items.append({"alarm": out, "device_name": device_name})
+    return AlarmHistoryListOut(items=items, page=Page(total=total, limit=limit, offset=offset))
 
 
 @alarms_router.get("/active", response_model=ActiveAlarmListOut)

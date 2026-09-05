@@ -15,6 +15,7 @@ IMPLEMENTATION_PLAN §2.2's "checked on each frame."
 
 import asyncio
 import logging
+import random
 from datetime import datetime, UTC
 
 import grpc
@@ -73,9 +74,14 @@ class AgentLinkServicer(_AgentLinkServicer):
         queue = manager.register(device_id)
         try:
             yield ServerFrame(
+                # Jitter the interval ±30%: when many devices reconnect at
+                # once (e.g. after a network partition), uniform intervals
+                # would synchronize heartbeats into a thundering herd.
                 heartbeat_ack=HeartbeatAck(
                     server_time_unix_ms=_now_ms(),
-                    next_heartbeat_interval_s=settings.sweep_interval_s,
+                    next_heartbeat_interval_s=int(
+                        settings.sweep_interval_s * random.uniform(0.7, 1.3)
+                    ),
                 )
             )
             # Anything queued while the device was offline goes out

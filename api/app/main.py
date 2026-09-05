@@ -13,6 +13,7 @@ from app.routers import (
     auth,
     device_config,
     device_groups,
+    device_tags,
     devices,
     faults,
     logs,
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
     app.include_router(logs.router)
     app.include_router(device_config.router)
     app.include_router(device_groups.router)
+    app.include_router(device_tags.router)
     app.include_router(updates.router)
     app.include_router(ws.router)
 

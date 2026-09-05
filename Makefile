@@ -45,7 +45,9 @@ db-up: ## start MinIO (docker compose); HQ runs on SQLite in storage/
 	@echo "minio ready (bucket: archeshq); HQ database: storage/hq.sqlite"
 
 db-down: ## stop them (data persists under storage/)
-	$(COMPOSE) down
+	# --remove-orphans also kills containers left over from services that
+	# were deleted from docker-compose.yml (e.g. the removed keycloak dev stack).
+	$(COMPOSE) down --remove-orphans
 
 migrate: ## alembic upgrade head
 	ARCHESHQ_DATABASE_URL=$(DATABASE_URL) $(VENV)/bin/alembic upgrade head

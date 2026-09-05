@@ -297,20 +297,30 @@ async def abort_rollout(
     # Tenant check through the device rows.
     tenant_devices = (
         await db.execute(
-            select(UpdateRolloutDevice.device_id).where(UpdateRolloutDevice.rollout_id == rollout.id)
+            select(UpdateRolloutDevice.device_id).where(
+                UpdateRolloutDevice.rollout_id == rollout.id
+            )
         )
     ).scalars().all()
     owned = (
-        await db.execute(select(Device.id).where(Device.id.in_(tenant_devices), Device.tenant_id == ctx.tenant_id))
+        await db.execute(
+            select(Device.id).where(
+                Device.id.in_(tenant_devices), Device.tenant_id == ctx.tenant_id
+            )
+        )
     ).scalars().all()
     if not owned:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "rollout not found")
 
     rows = (
-        await db.execute(
-            select(UpdateRolloutDevice).where(UpdateRolloutDevice.rollout_id == rollout.id)
+        (
+            await db.execute(
+                select(UpdateRolloutDevice).where(UpdateRolloutDevice.rollout_id == rollout.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     pending_ids = [r.device_id for r in rows if r.status == DeviceRolloutStatus.pending]
 
     # Revoke undelivered commands for those devices.
@@ -326,13 +336,17 @@ async def abort_rollout(
         row.status = DeviceRolloutStatus.failed
         row.error = "aborted by operator"
 
-    remaining = [r for r in rows if r.status not in (DeviceRolloutStatus.succeeded, DeviceRolloutStatus.failed)]
+    terminal = (DeviceRolloutStatus.succeeded, DeviceRolloutStatus.failed)
+    remaining = [r for r in rows if r.status not in terminal]
     if not remaining:
         rollout.status = RolloutStatus.failed
         rollout.completed_at = datetime.now(UTC)
 
     await audit.record(
-        db, ctx, "update.rollout.abort", payload={"rollout_id": str(rollout.id), "aborted_devices": len(pending_ids)}
+        db,
+        ctx,
+        "update.rollout.abort",
+        payload={"rollout_id": str(rollout.id), "aborted_devices": len(pending_ids)},
     )
     await db.commit()
     return {"ok": True, "aborted_devices": len(pending_ids)}
@@ -345,16 +359,22 @@ async def retry_rollout(
     ctx: TenantContext = Depends(require_role(UserRole.admin)),
 ):
     """Re-queue the update for every failed device of a rollout."""
-    rollout = (await db.execute(select(UpdateRollout).where(UpdateRollout.id == rollout_id))).scalar_one_or_none()
+    rollout = (
+        await db.execute(select(UpdateRollout).where(UpdateRollout.id == rollout_id))
+    ).scalar_one_or_none()
     if rollout is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "rollout not found")
     artifact = await db.get(UpdateArtifact, rollout.artifact_id)
 
     rows = (
-        await db.execute(
-            select(UpdateRolloutDevice).where(UpdateRolloutDevice.rollout_id == rollout.id)
+        (
+            await db.execute(
+                select(UpdateRolloutDevice).where(UpdateRolloutDevice.rollout_id == rollout.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     failed_ids = [r.device_id for r in rows if r.status == DeviceRolloutStatus.failed]
     if not failed_ids:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "no failed devices to retry")
@@ -380,7 +400,10 @@ async def retry_rollout(
     rollout.completed_at = None
 
     await audit.record(
-        db, ctx, "update.rollout.retry", payload={"rollout_id": str(rollout.id), "retried_devices": len(failed_ids)}
+        db,
+        ctx,
+        "update.rollout.retry",
+        payload={"rollout_id": str(rollout.id), "retried_devices": len(failed_ids)},
     )
     await db.commit()
     return {"ok": True, "retried_devices": len(failed_ids)}

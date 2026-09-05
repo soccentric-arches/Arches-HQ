@@ -15,7 +15,7 @@ Legend: ✅ shipped · 🚧 partial (shipped, gaps listed) · 🔜 next phase ·
 |---|---|---|
 | Bulk pre-provisioning from CSV/API | 🚧 | `POST /devices/bulk` (one name per line, up to 100) + Devices → Bulk enroll dialog returns per-device pairing tokens. **CSV *file* upload parsing and the public REST API shape are 🔮.** |
 | First-boot auto-enrollment with pre-shared token | 🚧 | Pairing-token flow exists (WebConfig dial-in). "First-boot unattended" variant needs the agent to auto-claim on zero-touch boot — 🔮 (Arches-Configuration). |
-| Pending-approval queue, accept/reject | 🔮 | Devices land in `pending` state but there is no approve/reject gate — add an enrollment-queue view + `POST /devices/{id}/approve`. |
+| Decommission (reject) | ✅ | `DELETE /devices/{id}` (admin) removes a pending/unwanted device + all data, audited. **Approve-without-token and an approval gate** — 🔮. |
 | Auto-approve rules (cert CA, HW ID range, claim token) | 🔮 | Needs an auto-approve policy model evaluated by agent-gateway at pairing. |
 | Device identity (UUID, serial, MAC, SoC ID, TPM handle) | 🚧 | UUID + serial live on the device row; MAC/SoC-ID/TPM handle need `reported` schema extension (AgentReport). |
 | Certificate lifecycle (issue, renew, revoke, CRL/OCSP) | 🔮 | Today: opaque token credentials. Full PKI is a dedicated workstream. |
@@ -31,8 +31,8 @@ Legend: ✅ shipped · 🚧 partial (shipped, gaps listed) · 🔜 next phase ·
 | Device list: search, sort, CSV export | 🚧 | Search across name/serial/IP/hostname (server-side), sortable columns + CSV export (client-side). Multi-column **filters, saved views** — 🔮. |
 | Full attributes (HW rev, SoC, RAM/eMMC, bootloader/kernel/rootfs/app ver, geo, timezone, warranty…) | 🚧 | Serial, board rev, IP, hostname, OS/sw versions are live. The rest arrives via AgentReport schema extensions — 🔮. |
 | Custom user-defined fields | 🔮 | Needs a per-tenant field schema + device `custom_fields` JSONB. |
-| Tags (freeform + key:value) | 🔮 | Needs `tag` + `device_tag` tables and tag filters. |
-| Static groups | 🔮 | `device_group` + membership table. |
+| Tags (freeform) | ✅ | `GET/PUT /devices/{id}/tags` + chip editor on device Settings; key:value syntax + list filters — 🔮. |
+| Static groups | ✅ | `POST/GET/DELETE /device-groups` + membership; UI on device Settings. Group targeting for rollouts shipped. |
 | Dynamic groups (query-based) | 🔮 | Stored query + re-evaluation job. |
 | Fleet hierarchy (org → site → line → device) | 🔮 | Largest model change; blocks the scope selector. |
 | Bulk edit / bulk tag | 🔮 | Follows tags + groups. |
@@ -64,10 +64,10 @@ Legend: ✅ shipped · 🚧 partial (shipped, gaps listed) · 🔜 next phase ·
 | Compatibility matrix (artifact ↔ HW rev ↔ version) | 🚧 | `target_board_rev` is checked manually today; enforced matrix — 🔮. |
 | Release channels (dev/beta/stable/LTS) | 🔮 | `channel` column + channel-aware targeting. |
 | SBOM per release, CVE cross-reference, license report | 🔮 | SBOM upload + scanner integration. |
-| Deployment targeting: single / group / fleet | 🚧 | All / specific devices live; **group + dynamic query targets follow groups** (🔮). |
+| Deployment targeting: single / group / fleet | ✅ (partial) | All / group / specific devices live. **Dynamic query targets** — 🔮. |
 | Phased rollout (canary %, waves, soak) | 🔮 | Extend `UpdateRollout` with wave plan; gateway already handles per-device acks. |
 | Auto-halt on failure-rate threshold | 🔮 | Rollout engine watches failure counts. |
-| Pause / resume / abort mid-flight | 🔮 | Rollout state machine extension. |
+| Abort mid-flight | ✅ | `POST /update/rollouts/{id}/abort` revokes undelivered commands, marks remaining devices failed. **Pause/resume** — 🔮. |
 | Maintenance windows / blackouts | 🔮 | Per-device or per-group schedule honored by the rollout engine. |
 | Per-device scheduling (deploy at 2am local) | 🔮 | Delayed PendingCommand delivery (scheduled_at column). |
 | Deferred install (apply on next reboot) | 🔮 | Agent-side policy. |
@@ -79,10 +79,10 @@ Legend: ✅ shipped · 🚧 partial (shipped, gaps listed) · 🔜 next phase ·
 | Dependency ordering (bootloader → rootfs) | 🔮 | Artifact dependency graph. |
 | Per-device deployment status (downloading %, installing, verifying…) | 🚧 | pending / applying / succeeded / failed exist; **fine-grained progress %** needs richer CommandAck payloads — 🔮. |
 | Failure reason capture with logs attached | 🚧 | Error string is stored; **log attachment** — 🔮. |
-| Retry policy / backoff / max attempts | 🔮 | Rollout engine. |
+| Retry (manual) | ✅ | `POST /update/rollouts/{id}/retry` re-queues failed devices. **Automatic retry/backoff** — 🔮. |
 | Deployment history + release diff | 🚧 | History ✓ (rollouts list). **Diff between two releases** — 🔮. |
 | Version distribution chart | ✅ | Overview → Software version spread. |
-| Stragglers report (behind N versions) | 🔮 | Cheap once a "current version" reference exists. |
+| Stragglers report (behind N versions) | 🚧 | Version-compliance card on Deployments (devices on latest artifact version); **straggler detail table** — 🔮. |
 
 ## 5. Configuration Management
 
@@ -123,9 +123,9 @@ Legend: ✅ shipped · 🚧 partial (shipped, gaps listed) · 🔜 next phase ·
 | Routing by group / on-call schedule | 🔮 | Follows groups + escalation model. |
 | Channels: email / SMS / Slack / PagerDuty / webhook | 🔮 | Needs notification-channel model + workers. |
 | Dedup, grouping, flap suppression | 🔮 | Alarm engine extension. |
-| Snooze / acknowledge / assign / resolve | 🚧 | Clear + resolve shipped; **acknowledge/assign/snooze** — 🔮. |
+| Snooze / acknowledge / resolve | 🚧 | Device-alarm clear + rule-alarm **acknowledge/resolve shipped** (Alerts page); **assign/snooze** — 🔮. |
 | Escalation policy | 🔮 | On-call rotation model. |
-| Alert history + MTTR reporting | 🔮 | History exists per device; MTTR = report over resolved alarms. |
+| Alert history + MTTR reporting | 🚧 | Rule-based alarm history fleet-wide shipped (`GET /alarms`); **MTTR reporting** — 🔮. |
 | Maintenance-mode suppression during deployments | 🔮 | Links rollouts → alarm suppression. |
 
 ## 8. Logs & Diagnostics
@@ -211,7 +211,7 @@ Legend: ✅ shipped · 🚧 partial (shipped, gaps listed) · 🔜 next phase ·
 
 | Feature | Status | Notes |
 |---|---|---|
-| Fleet health score | 🔮 | Composite of online %, active alarms, failed rollouts — cheap to add to Overview. |
+| Fleet health score | ✅ | Overview: weighted online ratio, alarm pressure, rollout failures → 0–100. Formula tuning — ongoing. |
 | Deployment success-rate trend | 🚧 | Success rate + per-device outcomes on the Deployments page; **trend over time** — 🔮. |
 | Failure clustering (which HW rev fails) | 🔮 | Group rollout failures by board_rev. |
 | Device lifecycle states | 🔮 | manufactured → shipped → commissioned → active → maintenance → retired. |
@@ -245,7 +245,7 @@ Legend: ✅ shipped · 🚧 partial (shipped, gaps listed) · 🔜 next phase ·
 | Graceful degradation when HQ unreachable | 🔮 | Agent capability. |
 | HQ HA / disaster recovery | 🔮 | Storage/ is now the single backup unit — snapshot + replicate. |
 | Rate limiting / backpressure on ingest | 🔮 | API middleware + gateway admission. |
-| Thundering-herd protection (jittered backoff) | 🔮 | HeartbeatAck already carries `next_heartbeat_interval_s` — add jitter + per-device backoff. |
+| Thundering-herd protection (jittered backoff) | ✅ | HeartbeatAck interval is jittered ±30% per ack. |
 | Bandwidth throttling per device / site | 🔮 | Gateway + agent. |
 | Data export / no lock-in | ✅ (mechanism) | Per-device SQLite + CSV fleet export; full-fleet export — 🔮. |
 | On-prem / air-gapped option | 🔮 | Compose stack is self-contained already; needs offline artifact delivery. |

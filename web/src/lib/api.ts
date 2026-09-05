@@ -5,6 +5,7 @@ import type {
   AlarmRule,
   AuditLogListResponse,
   Backup,
+  Page,
   BackupListResponse,
   ConfigSection,
   Device,
@@ -100,6 +101,13 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({ config }),
       }),
+    getTags: (id: string) =>
+      request<{ tags: string[] }>(`/devices/${id}/tags`),
+    setTags: (id: string, tags: string[]) =>
+      request<{ tags: string[] }>(`/devices/${id}/tags`, {
+        method: 'PUT',
+        body: JSON.stringify({ tags }),
+      }),
     rotateCredential: (id: string) =>
       request<DeviceCreateResponse>(`/devices/${id}/credential/rotate`, { method: 'POST' }),
     revokeCredential: (id: string) =>
@@ -157,6 +165,11 @@ export const api = {
   },
   alarms: {
     active: () => request<ActiveAlarmListResponse>('/alarms/active'),
+    history: () =>
+      request<{
+        items: { alarm: Alarm; device_name: string }[];
+        page: Page;
+      }>('/alarms'),
     listForDevice: (deviceId: string, since?: string) => {
       const qs = since ? `?since=${encodeURIComponent(since)}` : ''
       return request<DeviceAlarmListResponse>(`/devices/${deviceId}/alarms${qs}`)

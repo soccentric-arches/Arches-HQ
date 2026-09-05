@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { Plus, RefreshCw } from 'lucide-vue-next'
 import { api, ApiError } from '@/lib/api'
-import type { DeviceGroup, UpdateArtifact, UpdateRollout } from '@/lib/types'
+import type { Device, DeviceGroup, UpdateArtifact, UpdateRollout } from '@/lib/types'
 import { useAuthStore } from '@/stores/auth'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
@@ -16,6 +16,7 @@ const auth = useAuthStore()
 const artifacts = ref<UpdateArtifact[]>([])
 const rollouts = ref<UpdateRollout[]>([])
 const groups = ref<DeviceGroup[]>([])
+const devices = ref<Device[]>([])
 const loading = ref(true)
 const error = ref('')
 const message = ref('')
@@ -30,6 +31,20 @@ const creating = ref(false)
 // artifact creation
 const artifactOpen = ref(false)
 const form = ref({ version: '', target_board_rev: '', storage_url: '', checksum_sha256: '' })
+
+// Version compliance: devices whose agent-reported software version does
+// not match the newest artifact (naive semver-less compare).
+const latestArtifact = computed(() => {
+  const sorted = [...artifacts.value].sort((a, b) => b.version.localeCompare(a.version))
+  return sorted[0] ?? null
+})
+
+const compliance = computed(() => {
+  const latest = latestArtifact.value
+  if (!latest) return null
+  const onLatest = devices.value.filter((d) => d.sw_version?.endsWith(latest.version)).length
+  return { total: devices.value.length, onLatest, behind: devices.value.length - onLatest, version: latest.version }
+})
 
 // Success rate across every per-device rollout outcome recorded so far.
 const successStats = computed(() => {
@@ -50,14 +65,16 @@ async function load(silent = false) {
   if (!silent) loading.value = true
   error.value = ''
   try {
-    const [a, r, g] = await Promise.all([
+    const [a, r, g, d] = await Promise.all([
       api.updates.listArtifacts(),
       api.updates.listRollouts(),
       api.deviceGroups.list(),
+      api.devices.list({ limit: 200 }),
     ])
     artifacts.value = a.items
     rollouts.value = r.items
     groups.value = g.items
+    devices.value = d.items
   } catch {
     error.value = 'Could not load deployments.'
   } finally {
@@ -183,7 +200,18 @@ onMounted(() => load())
     <Card v-else-if="loading" class="p-6 text-sm text-muted-foreground">Loading…</Card>
 
     <template v-else>
-      <div class="mb-4 grid grid-cols-3 gap-4">
+      <div class="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <Card class="p-4">
+          <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Version compliance
+          </p>
+          <p class="mt-1 text-2xl font-semibold">
+            {{ compliance ? `${compliance.onLatest}/${compliance.total}` : '—' }}
+          </p>
+          <p class="mt-1 text-xs text-muted-foreground">
+            {{ compliance ? `on v${compliance.version} · ${compliance.behind} behind` : 'no artifacts yet' }}
+          </p>
+        </Card>
         <Card class="p-4 text-center">
           <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Success rate</p>
           <p class="mt-1 text-2xl font-semibold">

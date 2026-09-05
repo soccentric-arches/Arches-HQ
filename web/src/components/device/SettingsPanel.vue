@@ -77,6 +77,43 @@ async function revokeCredential() {
   }
 }
 
+// --- tags ---
+const tags = ref<string[]>([])
+const newTag = ref('')
+const tagsBusy = ref(false)
+
+async function loadTags() {
+  try {
+    const res = await api.devices.getTags(props.device.id)
+    tags.value = res.tags
+  } catch {
+    tags.value = []
+  }
+}
+
+async function saveTags(next: string[]) {
+  tagsBusy.value = true
+  try {
+    const res = await api.devices.setTags(props.device.id, next)
+    tags.value = res.tags
+  } catch {
+    /* keep prior state */
+  } finally {
+    tagsBusy.value = false
+  }
+}
+
+async function addTag() {
+  const t = newTag.value.trim()
+  if (!t || tags.value.includes(t)) return
+  newTag.value = ''
+  await saveTags([...tags.value, t])
+}
+
+async function removeTag(tag: string) {
+  await saveTags(tags.value.filter((t) => t !== tag))
+}
+
 // --- groups ---
 const groups = ref<DeviceGroup[]>([])
 const groupsBusy = ref(false)
@@ -179,7 +216,10 @@ watch(
   () => props.device.name,
   (v) => (name.value = v),
 )
-onMounted(loadGroups)
+onMounted(() => {
+  loadGroups()
+  loadTags()
+})
 </script>
 
 <template>
@@ -239,6 +279,28 @@ onMounted(loadGroups)
           </Button>
         </div>
         <span v-if="sys.error.value" class="mt-1 text-sm text-danger">{{ sys.error.value }}</span>
+      </div>
+    </Card>
+
+    <Card class="p-4">
+      <h3 class="text-sm font-semibold">Tags</h3>
+      <p class="mt-1 text-sm text-muted-foreground">Freeform labels for filtering and search.</p>
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <span
+          v-for="t in tags"
+          :key="t"
+          class="flex items-center gap-1 rounded-full bg-accent-muted px-2.5 py-1 text-xs font-medium text-accent"
+        >
+          {{ t }}
+          <button type="button" class="hover:text-danger" :disabled="tagsBusy" @click="removeTag(t)">×</button>
+        </span>
+        <input
+          v-model="newTag"
+          type="text"
+          placeholder="Add tag…"
+          class="h-7 w-32 rounded-md border border-border bg-surface px-2 text-xs"
+          @keydown.enter="addTag"
+        />
       </div>
     </Card>
 

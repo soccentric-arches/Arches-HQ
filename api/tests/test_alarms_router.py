@@ -1,6 +1,7 @@
 from datetime import datetime, UTC
 from uuid import uuid4
 
+from app.models.alarm import Alarm, AlarmRule
 from app.models.device import Device
 from app.models.enums import AlarmState, UserRole
 from tests.factories import login_as, make_tenant, make_user
@@ -225,3 +226,31 @@ async def test_active_alarms_fleet_feed(client, db_session):
     assert len(body["items"]) == 1
     assert body["items"][0]["device_name"] == "alpha"
     assert body["items"][0]["alarm_code"] == 0x01020304
+
+
+async def test_rule_alarm_history_listed_with_device_name(client, db_session):
+    tenant = await make_tenant(db_session)
+    admin = await make_user(db_session, tenant, UserRole.admin)
+    device = Device(tenant_id=tenant.id, name="hist-device")
+    db_session.add(device)
+    await db_session.flush()
+    rule = AlarmRule(tenant_id=tenant.id, name="cpu", condition={"kind": "fault_code"})
+    db_session.add(rule)
+    await db_session.flush()
+    db_session.add(
+        Alarm(
+            alarm_rule_id=rule.id,
+            device_id=device.id,
+            state=AlarmState.active,
+            triggered_at=datetime.now(UTC),
+        )
+    )
+    await db_session.commit()
+
+    login_as(client, admin)
+    resp = await client.get("/alarms")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["items"]) == 1
+    assert body["items"][0]["device_name"] == "hist-device"
+    assert body["items"][0]["alarm"]["state"] == "active"
