@@ -64,7 +64,7 @@ onMounted(async () => {
 
     <section class="min-w-0">
       <nav class="mb-4 flex items-center gap-1 text-sm text-muted-foreground" aria-label="Breadcrumb">
-        <RouterLink to="/" class="hover:text-foreground">Devices</RouterLink>
+        <RouterLink :to="{ name: 'devices' }" class="hover:text-foreground">Devices</RouterLink>
         <ChevronRight class="h-3.5 w-3.5" />
         <span v-if="device" class="truncate font-medium text-foreground">{{ device.name }}</span>
       </nav>

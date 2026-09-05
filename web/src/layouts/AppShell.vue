@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   Bell,
@@ -12,11 +12,12 @@ import {
   Search,
 } from 'lucide-vue-next'
 import { api } from '@/lib/api'
-import type { ActiveAlarm, Device } from '@/lib/types'
+import type { ActiveAlarm } from '@/lib/types'
 import { useAuthStore } from '@/stores/auth'
 import { cn } from '@/lib/utils'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import DropdownMenuItem from '@/components/ui/DropdownMenuItem.vue'
+import CommandPalette from '@/components/layout/CommandPalette.vue'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -27,8 +28,8 @@ const router = useRouter()
 // Users, Audit Log); everything else lives on device pages or in
 // future_feature.md.
 const navLinks = computed(() => {
+  // Overview is the index page (brand mark links there) -- no nav item needed.
   const links = [
-    { to: { name: 'overview' }, label: 'Overview', active: route.name === 'overview' },
     {
       to: { name: 'devices' },
       label: 'Devices',
@@ -43,6 +44,11 @@ const navLinks = computed(() => {
       to: { name: 'alarm-rules' },
       label: 'Alerts',
       active: route.name === 'alarm-rules',
+    },
+    {
+      to: { name: 'settings' },
+      label: 'Settings',
+      active: route.name === 'settings',
     },
   ]
   if (auth.hasRole('admin')) {
@@ -61,41 +67,9 @@ async function handleLogout() {
   router.push({ name: 'login' })
 }
 
-// ── global search (serial, IP, hostname, name) — `/` focuses ─────────────
-const searchInput = ref<HTMLInputElement | null>(null)
-const q = ref('')
-const searchOpen = ref(false)
-const searchResults = ref<Device[]>([])
-const searching = ref(false)
-let searchTimer: ReturnType<typeof setTimeout> | null = null
-
-watch(q, (value) => {
-  if (searchTimer) clearTimeout(searchTimer)
-  const query = value.trim()
-  if (query.length < 2) {
-    searchResults.value = []
-    searchOpen.value = false
-    return
-  }
-  searchTimer = setTimeout(async () => {
-    searching.value = true
-    try {
-      const res = await api.devices.list({ q: query, limit: 8 })
-      searchResults.value = res.items
-      searchOpen.value = true
-    } catch {
-      searchOpen.value = false
-    } finally {
-      searching.value = false
-    }
-  }, 250)
-})
-
-function goToDevice(id: string) {
-  searchOpen.value = false
-  q.value = ''
-  router.push({ name: 'device-detail', params: { id } })
-}
+// ── command palette (global search) — opened by `/` or the search button ─
+const paletteOpen = ref(false)
+const searchButton = ref<HTMLButtonElement | null>(null)
 
 // ── alert bell (fleet-wide active alarms) ────────────────────────────────
 const alarmCount = ref(0)
@@ -148,14 +122,14 @@ async function pingBackend() {
 
 const envBadge = computed(() => (import.meta.env.DEV ? 'DEV' : 'PROD'))
 
-// ── keyboard shortcuts: `/` search, `g d` devices, `g p` deployments ─────
+// ── keyboard shortcuts: `/` palette, `g d` devices, `g p` deployments ────
 let chordPending = false
 function onKeydown(e: KeyboardEvent) {
   const target = e.target as HTMLElement
   const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable
   if (e.key === '/' && !typing) {
     e.preventDefault()
-    searchInput.value?.focus()
+    paletteOpen.value = true
     return
   }
   if (typing) return
@@ -191,7 +165,7 @@ onUnmounted(() => {
 <template>
   <div class="flex min-h-screen flex-col">
     <header class="sticky top-0 z-40 h-14 border-b border-border bg-surface">
-      <div class="mx-auto flex h-full max-w-6xl items-center gap-4 px-4 sm:px-6">
+      <div class="mx-auto flex h-full max-w-6xl items-center gap-2 px-4 sm:px-6">
         <RouterLink
           to="/"
           class="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight"
@@ -201,63 +175,28 @@ onUnmounted(() => {
           >
             <Satellite class="h-3.5 w-3.5" />
           </span>
-          <span class="hidden sm:block">Arches-HQ</span>
+          <span class="hidden lg:block">Arches-HQ</span>
         </RouterLink>
 
-        <!-- global search: serial, IP, hostname, name — `/` focuses -->
-        <div class="relative min-w-0 max-w-xs flex-1 sm:flex-none">
-          <span
-            class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-          >
-            <Search class="h-3.5 w-3.5" />
-          </span>
-          <input
-            ref="searchInput"
-            v-model="q"
-            type="search"
-            placeholder="Search devices…  ( / )"
-            class="h-8 w-full rounded-md border border-border bg-surface-muted pl-8 pr-8 text-sm placeholder:text-muted focus:border-accent focus:bg-surface"
-            @focus="q.trim().length >= 2 && (searchOpen = true)"
-            @keydown.esc="searchOpen = false; ($event.target as HTMLInputElement).blur()"
-          />
-          <kbd
-            v-if="!q"
-            class="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-border bg-surface px-1 text-[10px] text-muted-foreground sm:block"
-          >
-            /
-          </kbd>
+        <button
+          ref="searchButton"
+          type="button"
+          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+          aria-label="Search devices ( / )"
+          title="Search devices ( / )"
+          @click="paletteOpen = true"
+        >
+          <Search class="h-4 w-4" />
+        </button>
 
-          <!-- search results dropdown -->
-          <div
-            v-if="searchOpen && q.trim().length >= 2"
-            class="absolute left-0 right-0 top-10 z-50 overflow-hidden rounded-md border border-border bg-surface py-1 shadow-md"
-          >
-            <p v-if="searchResults.length === 0 && !searching" class="px-3 py-2 text-sm text-muted-foreground">
-              No devices match “{{ q }}”.
-            </p>
-            <button
-              v-for="d in searchResults"
-              :key="d.id"
-              type="button"
-              class="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-sm hover:bg-surface-muted"
-              @click="goToDevice(d.id)"
-            >
-              <span class="truncate font-medium">{{ d.name }}</span>
-              <span class="shrink-0 font-mono text-xs text-muted-foreground">
-                {{ d.serial ?? d.ip_address ?? '—' }}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        <nav class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" aria-label="Global">
+        <nav class="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto" aria-label="Global">
           <RouterLink
             v-for="link in navLinks"
             :key="link.label"
             :to="link.to"
             :class="
               cn(
-                'whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm transition-colors',
+                'whitespace-nowrap rounded-md px-2 py-1.5 text-sm transition-colors',
                 link.active
                   ? 'bg-surface-muted font-medium text-foreground'
                   : 'text-muted-foreground hover:text-foreground',
@@ -272,7 +211,7 @@ onUnmounted(() => {
         <RouterLink
           v-if="activeRollouts > 0"
           to="/deployments"
-          class="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+          class="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
           :title="`${activeRollouts} active deployment(s)`"
         >
           <LoaderCircle class="h-4 w-4 animate-spin text-accent" />
@@ -330,7 +269,7 @@ onUnmounted(() => {
           <template #trigger>
             <button
               type="button"
-              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+              class="hidden h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground sm:flex"
               aria-label="Help"
             >
               <CircleHelp class="h-4 w-4" />
@@ -348,25 +287,26 @@ onUnmounted(() => {
           </div>
         </Dropdown>
 
-        <!-- fleet status cluster: env badge + backend connection -->
-        <div class="hidden shrink-0 items-center gap-2 lg:flex" aria-hidden="true">
+        <!-- fleet status cluster: env badge + backend connection dot -->
+        <div class="hidden shrink-0 items-center gap-1.5 xl:flex" aria-hidden="true">
           <span
             class="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
             :class="envBadge === 'DEV' ? 'bg-warning-muted text-warning' : 'bg-success-muted text-success'"
           >
             {{ envBadge }}
           </span>
-          <span class="flex items-center gap-1 text-[10px] text-muted-foreground" :title="backendUp ? 'Backend connected' : 'Backend unreachable'">
-            <span class="h-1.5 w-1.5 rounded-full" :class="backendUp ? 'bg-success' : 'bg-danger'" />
-            {{ backendUp ? 'Connected' : 'Offline' }}
-          </span>
+          <span
+            class="h-1.5 w-1.5 rounded-full"
+            :class="backendUp ? 'bg-success' : 'bg-danger'"
+            :title="backendUp ? 'Backend connected' : 'Backend unreachable'"
+          />
         </div>
 
         <Dropdown v-if="auth.user">
           <template #trigger>
             <button
               type="button"
-              class="flex items-center gap-2 rounded-md p-1 pr-2 text-sm transition-colors hover:bg-surface-muted"
+              class="flex shrink-0 items-center gap-1.5 rounded-md p-1 pr-1.5 text-sm transition-colors hover:bg-surface-muted"
               aria-haspopup="menu"
             >
               <span
@@ -374,10 +314,7 @@ onUnmounted(() => {
               >
                 {{ initials }}
               </span>
-              <span class="hidden max-w-40 truncate text-muted-foreground md:block">
-                {{ auth.user.email }}
-              </span>
-              <ChevronsUpDown class="h-3.5 w-3.5 text-muted-foreground" />
+              <ChevronsUpDown class="hidden h-3.5 w-3.5 text-muted-foreground md:block" />
             </button>
           </template>
 
@@ -397,5 +334,7 @@ onUnmounted(() => {
     <main class="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
       <slot />
     </main>
+
+    <CommandPalette :open="paletteOpen" @close="paletteOpen = false" />
   </div>
 </template>

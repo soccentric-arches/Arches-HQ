@@ -10,11 +10,16 @@ const router = createRouter({
       component: () => import('@/views/LoginView.vue'),
       meta: { public: true },
     },
-    { path: '/', name: 'devices', component: () => import('@/views/DeviceListView.vue') },
+    { path: '/', name: 'overview', component: () => import('@/views/OverviewView.vue') },
     {
-      path: '/overview',
-      name: 'overview',
-      component: () => import('@/views/OverviewView.vue'),
+      path: '/devices',
+      name: 'devices',
+      component: () => import('@/views/DeviceListView.vue'),
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/views/SettingsView.vue'),
     },
     {
       path: '/deployments',

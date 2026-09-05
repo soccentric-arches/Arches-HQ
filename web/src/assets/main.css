@@ -1,32 +1,75 @@
 @import 'tailwindcss';
 
 /*
- * Design tokens -- shadcn-inspired, light theme only (IMPLEMENTATION_PLAN §1.4).
- * No dark-mode variables, no prefers-color-scheme branch: deliberate scope cut.
+ * Design tokens -- shadcn-inspired (IMPLEMENTATION_PLAN §1.4).
+ *
+ * Semantic values live on :root / .dark so the whole UI flips at runtime
+ * (Settings > Appearance); `@theme inline` makes every Tailwind utility
+ * reference the live variable instead of a baked-in color.
+ *
+ * Density: html.compact shrinks the root font size, which scales every
+ * rem-based Tailwind spacing value down together.
  */
-@theme {
-  --color-background: oklch(99% 0 0);
-  --color-foreground: oklch(20% 0.01 260);
+@custom-variant dark (&:where(.dark, .dark *));
 
-  --color-surface: oklch(100% 0 0);
-  --color-surface-muted: oklch(97% 0.002 260);
+:root {
+  --background: oklch(99% 0 0);
+  --foreground: oklch(20% 0.01 260);
+  --surface: oklch(100% 0 0);
+  --surface-muted: oklch(97% 0.002 260);
+  --border: oklch(90% 0.004 260);
+  --border-strong: oklch(82% 0.004 260);
+  --muted: oklch(55% 0.01 260);
+  --muted-foreground: oklch(45% 0.01 260);
+  --accent: oklch(52% 0.16 264);
+  --accent-foreground: oklch(98% 0 0);
+  --accent-muted: oklch(94% 0.03 264);
+  --success: oklch(56% 0.11 155);
+  --success-muted: oklch(94% 0.04 155);
+  --warning: oklch(65% 0.13 80);
+  --warning-muted: oklch(94% 0.05 80);
+  --danger: oklch(55% 0.19 25);
+  --danger-muted: oklch(94% 0.05 25);
+}
 
-  --color-border: oklch(90% 0.004 260);
-  --color-border-strong: oklch(82% 0.004 260);
+.dark {
+  --background: oklch(17% 0.012 260);
+  --foreground: oklch(93% 0.008 260);
+  --surface: oklch(21% 0.014 260);
+  --surface-muted: oklch(25% 0.016 260);
+  --border: oklch(30% 0.015 260);
+  --border-strong: oklch(42% 0.02 260);
+  --muted: oklch(65% 0.01 260);
+  --muted-foreground: oklch(70% 0.012 260);
+  --accent: oklch(68% 0.15 264);
+  --accent-foreground: oklch(15% 0.012 260);
+  --accent-muted: oklch(30% 0.06 264);
+  --success: oklch(70% 0.11 155);
+  --success-muted: oklch(28% 0.05 155);
+  --warning: oklch(75% 0.13 80);
+  --warning-muted: oklch(30% 0.06 80);
+  --danger: oklch(66% 0.19 25);
+  --danger-muted: oklch(29% 0.07 25);
+}
 
-  --color-muted: oklch(55% 0.01 260);
-  --color-muted-foreground: oklch(45% 0.01 260);
-
-  --color-accent: oklch(52% 0.16 264);
-  --color-accent-foreground: oklch(98% 0 0);
-  --color-accent-muted: oklch(94% 0.03 264);
-
-  --color-success: oklch(56% 0.11 155);
-  --color-success-muted: oklch(94% 0.04 155);
-  --color-warning: oklch(65% 0.13 80);
-  --color-warning-muted: oklch(94% 0.05 80);
-  --color-danger: oklch(55% 0.19 25);
-  --color-danger-muted: oklch(94% 0.05 25);
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-muted: var(--accent-muted);
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-danger: var(--danger);
+  --color-danger-muted: var(--danger-muted);
 
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
@@ -36,9 +79,19 @@
     ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
+html {
+  font-size: 16px; /* Relaxed (default) */
+}
+html.mid {
+  font-size: 14.5px; /* Mid */
+}
+html.compact {
+  font-size: 13px; /* Compact */
+}
+
 body {
-  background-color: var(--color-background);
-  color: var(--color-foreground);
+  background-color: var(--background);
+  color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
