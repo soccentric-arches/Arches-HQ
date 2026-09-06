@@ -99,9 +99,13 @@ class FaultEvent(_message.Message):
         INFO: _ClassVar[FaultEvent.Severity]
         WARN: _ClassVar[FaultEvent.Severity]
         CRITICAL: _ClassVar[FaultEvent.Severity]
+        MINOR: _ClassVar[FaultEvent.Severity]
+        MAJOR: _ClassVar[FaultEvent.Severity]
     INFO: FaultEvent.Severity
     WARN: FaultEvent.Severity
     CRITICAL: FaultEvent.Severity
+    MINOR: FaultEvent.Severity
+    MAJOR: FaultEvent.Severity
     class Kind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         RAISED: _ClassVar[FaultEvent.Kind]

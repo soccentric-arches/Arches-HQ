@@ -29,23 +29,63 @@ device_alarms_router = APIRouter(prefix="/devices/{device_id}/alarms", tags=["al
 alarms_router = APIRouter(prefix="/alarms", tags=["alarms"])
 alarm_rules_router = APIRouter(prefix="/alarm-rules", tags=["alarms"])
 
-# 4-byte alarm code packing (device-reported alarms, R3 ingest path).
-# The code is a big-endian uint32 where:
-#   byte 0 (most significant) = major_id
-#   byte 1                   = sub_section
-#   byte 2                   = fault_type
-#   byte 3 (least significant) = severity
-# Example: 0x01020304 -> major_id=1, sub_section=2, fault_type=3, severity=4.
-# This byte order MUST match the daemon's `alarms_encode` packing.
+# Alarm identity: 32-bit packed code (device-reported alarms, R3 ingest path).
+#
+# SOURCE OF TRUTH: Arches-Instrumentation/catalog/alarms.yaml (header) and
+# Arches-Instrumentation/REQ.md section 8. The layout is marked *locked* there:
+# the device's alarms daemon generates its C++ header from that catalog, so HQ
+# decodes against it rather than the other way round.
+#
+#   [31:28]  domain  (4 bits)   hardware / software / network / application / fault
+#   [27:20]  module  (8 bits)   which daemon or subsystem (256)
+#   [19:16]  type    (4 bits)   X.733 category: equipment, communications,
+#                               processing-error, quality-of-service, environmental
+#   [15:0]   index   (16 bits)  alarm within that module (65536)
+#
+# Worked example from REQ.md section 8: the catalog spelling 0x1_04_1_0007
+# packs to 0x10410007 and reads as hardware / Hardware daemon / equipment /
+# alarm 7 -- i.e. (domain=1, module=4, type=1, index=7).
+#
+# SEVERITY IS NOT IN THE CODE. It is a separate field on the device's
+# AlarmEvent, because the same alarm can be raised at different severities and
+# because severity changes over an alarm's life (X.733 severity-change events).
+#
+# This module previously unpacked the word as four equal bytes and called the
+# low byte "severity". That is wrong at every offset, not merely shifted: the
+# byte boundaries fall inside the domain and module fields, so 0x10410007 came
+# out as (16, 65, 0, 7) instead of (1, 4, 1, 7). See Task.md C-03/C-04.
+
+_DOMAIN_SHIFT, _DOMAIN_MASK = 28, 0xF
+_MODULE_SHIFT, _MODULE_MASK = 20, 0xFF
+_TYPE_SHIFT, _TYPE_MASK = 16, 0xF
+_INDEX_MASK = 0xFFFF
 
 
 def _decode_alarm_code(code: int) -> tuple[int, int, int, int]:
-    """Unpack a 4-byte alarm code into (major_id, sub_section, fault_type, severity)."""
+    """Unpack a packed alarm code into ``(domain, module, alarm_type, index)``.
+
+    Severity is deliberately absent -- it travels as its own field, not inside
+    the code. See the layout note above.
+    """
     return (
-        (code >> 24) & 0xFF,
-        (code >> 16) & 0xFF,
-        (code >> 8) & 0xFF,
-        code & 0xFF,
+        (code >> _DOMAIN_SHIFT) & _DOMAIN_MASK,
+        (code >> _MODULE_SHIFT) & _MODULE_MASK,
+        (code >> _TYPE_SHIFT) & _TYPE_MASK,
+        code & _INDEX_MASK,
+    )
+
+
+def _encode_alarm_code(domain: int, module: int, alarm_type: int, index: int) -> int:
+    """Pack ``(domain, module, alarm_type, index)`` back into a 32-bit code.
+
+    Present so the decode can be round-trip tested against the locked layout
+    rather than only spot-checked.
+    """
+    return (
+        ((domain & _DOMAIN_MASK) << _DOMAIN_SHIFT)
+        | ((module & _MODULE_MASK) << _MODULE_SHIFT)
+        | ((alarm_type & _TYPE_MASK) << _TYPE_SHIFT)
+        | (index & _INDEX_MASK)
     )
 
 
@@ -93,8 +133,9 @@ async def ingest_device_alarm(
 
     The device must belong to the caller's tenant (scoped via the parent
     device). ``alarm_code`` is a hex string (e.g. ``"0x01020304"``) decoded
-    into major_id / sub_section / fault_type / severity using the byte order
-    documented at the top of this module. The row is created in the ``active``
+    into domain / module / alarm_type / index using the locked layout
+    documented at the top of this module. Severity is carried as its own
+    field on the payload, not extracted from the code. The row is created in the ``active``
     state. ``triggered_at`` is the device-side timestamp, stored verbatim.
     """
     await get_tenant_device_or_404(db, ctx, device_id)
@@ -104,7 +145,7 @@ async def ingest_device_alarm(
     except (ValueError, TypeError) as exc:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "alarm_code must be a hex string e.g. '0x01020304'",
+            "alarm_code must be a hex string e.g. '0x10410007'",
         ) from exc
     if code < 0 or code > 0xFFFFFFFF:
         raise HTTPException(
@@ -112,14 +153,15 @@ async def ingest_device_alarm(
             "alarm_code must fit in 4 bytes (0x00000000..0xffffffff)",
         )
 
-    major_id, sub_section, fault_type, severity = _decode_alarm_code(code)
+    domain, module, alarm_type, alarm_index = _decode_alarm_code(code)
 
     alarm = DeviceAlarm(
         device_id=device_id,
-        major_id=major_id,
-        sub_section=sub_section,
-        fault_type=fault_type,
-        severity=severity,
+        domain=domain,
+        module=module,
+        alarm_type=alarm_type,
+        alarm_index=alarm_index,
+        severity=body.severity,
         alarm_code=code,
         state=AlarmState.active,
         triggered_at=body.triggered_at,
@@ -211,9 +253,10 @@ async def list_active_alarms(
             id=a.id,
             device_id=a.device_id,
             device_name=name,
-            major_id=a.major_id,
-            sub_section=a.sub_section,
-            fault_type=a.fault_type,
+            domain=a.domain,
+            module=a.module,
+            alarm_type=a.alarm_type,
+            alarm_index=a.alarm_index,
             severity=a.severity,
             alarm_code=a.alarm_code,
             state=a.state,

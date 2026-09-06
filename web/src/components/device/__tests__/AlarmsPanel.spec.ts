@@ -31,11 +31,12 @@ function deviceAlarmResponse(state: DeviceAlarm['state'] = 'active'): DeviceAlar
       {
         id: ALARM_ID,
         device_id: DEVICE_ID,
-        major_id: 1,
-        sub_section: 2,
-        fault_type: 3,
-        severity: 4,
-        alarm_code: 0x01020304,
+        domain: 1,
+        module: 4,
+        alarm_type: 1,
+        alarm_index: 7,
+        severity: 'major',
+        alarm_code: 0x10410007,
         state,
         triggered_at: '2026-07-30T12:00:00Z',
         resolved_at: null,
@@ -76,11 +77,12 @@ describe('AlarmsPanel', () => {
     api.alarms.clear.mockResolvedValue({
       id: ALARM_ID,
       device_id: DEVICE_ID,
-      major_id: 1,
-      sub_section: 2,
-      fault_type: 3,
-      severity: 4,
-      alarm_code: 0x01020304,
+      domain: 1,
+      module: 4,
+      alarm_type: 1,
+      alarm_index: 7,
+      severity: 'major',
+      alarm_code: 0x10410007,
       state: 'resolved',
       triggered_at: '2026-07-30T12:00:00Z',
       resolved_at: '2026-07-30T12:01:00Z',
@@ -91,14 +93,27 @@ describe('AlarmsPanel', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders the decoded 4-byte fields and hex alarm_code', async () => {
+  it('renders the decoded locked-layout fields and hex alarm_code', async () => {
     const wrapper = await mountAsOperator()
 
     const html = wrapper.html()
-    expect(html).toContain('0x01020304')
-    expect(html).toContain('Major')
+    // The catalog's worked example: hardware / Hardware daemon / equipment /
+    // alarm 7 (Arches-Instrumentation REQ.md section 8).
+    expect(html).toContain('0x10410007')
+    expect(html).toContain('Domain')
+    expect(html).toContain('Module')
+    expect(html).toContain('Index')
     expect(html).toContain('Severity')
     expect(wrapper.text()).toContain('active')
+  })
+
+  it('renders severity as a named X.733 level, not a bare number', async () => {
+    // Regression guard for Task.md C-03/C-05: severity used to be the low byte
+    // of the alarm index rendered as an integer.
+    const wrapper = await mountAsOperator()
+
+    expect(wrapper.text()).toContain('major')
+    expect(wrapper.text()).not.toContain('sub_section')
   })
 
   it('shows a Clear button for an active alarm (operator) and wires it to api.alarms.clear, then re-loads', async () => {

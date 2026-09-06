@@ -39,10 +39,14 @@ from archeshq.agent_pb2 import (
 
 logger = logging.getLogger("gateway.handlers")
 
+# Wire severity -> stored severity. WARN is X.733's "warning"; the proto keeps
+# the shorter spelling for compatibility with deployed agents (Task.md C-05).
 _SEVERITY_MAP = {
     FaultEvent.INFO: FaultSeverity.info,
-    FaultEvent.WARN: FaultSeverity.warn,
+    FaultEvent.WARN: FaultSeverity.warning,
     FaultEvent.CRITICAL: FaultSeverity.critical,
+    FaultEvent.MINOR: FaultSeverity.minor,
+    FaultEvent.MAJOR: FaultSeverity.major,
 }
 
 

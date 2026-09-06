@@ -74,10 +74,19 @@ message Location {
 
 message FaultEvent {
   string code = 1;
+  // The five X.733 perceived-severity levels, matching
+  // Arches-Instrumentation's common.Severity and catalog/alarms.yaml.
+  //
+  // WARN = 1 is retained under its original name and number for wire
+  // compatibility with already-deployed agents; WARNING is its X.733 spelling
+  // and the two are the same level. MINOR and MAJOR are appended as new
+  // numbers, which is a backward-compatible enum change. See Task.md C-05.
   enum Severity {
     INFO = 0;
     WARN = 1;
     CRITICAL = 2;
+    MINOR = 3;
+    MAJOR = 4;
   }
   Severity severity = 2;
   string message = 3;

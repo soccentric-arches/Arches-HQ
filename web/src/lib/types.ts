@@ -73,7 +73,9 @@ export interface AuditLogListResponse {
   page: Page
 }
 
-export type FaultSeverity = 'info' | 'warn' | 'critical'
+// The five X.733 perceived-severity levels, matching the API's FaultSeverity
+// enum and Arches-Instrumentation's common.Severity (Task.md C-05).
+export type FaultSeverity = 'info' | 'warning' | 'minor' | 'major' | 'critical'
 
 export interface Fault {
   id: string
@@ -107,16 +109,26 @@ export interface AlarmListResponse {
   page: Page
 }
 
-// Device-reported 4-byte alarm from the `alarms` table (GET /devices/{id}/alarms).
-// `alarm_code` is the packed big-endian uint32 (byte0=major_id, byte1=sub_section,
-// byte2=fault_type, byte3=severity), e.g. 0x01020304 -> (1, 2, 3, 4).
+// Device-reported alarm from the `alarms` table (GET /devices/{id}/alarms).
+//
+// `alarm_code` is a packed uint32 with the layout locked by
+// Arches-Instrumentation/catalog/alarms.yaml:
+//   [31:28] domain, [27:20] module, [19:16] type, [15:0] index
+// e.g. 0x10410007 -> domain 1, module 4, type 1, index 7
+// (hardware / Hardware daemon / equipment / alarm 7).
+//
+// Severity is NOT in the code; it is reported separately and is one of the
+// five X.733 levels.
+export type AlarmSeverity = 'info' | 'warning' | 'minor' | 'major' | 'critical'
+
 export interface DeviceAlarm {
   id: string
   device_id: string
-  major_id: number
-  sub_section: number
-  fault_type: number
-  severity: number
+  domain: number
+  module: number
+  alarm_type: number
+  alarm_index: number
+  severity: AlarmSeverity
   alarm_code: number
   state: AlarmState
   triggered_at: string
@@ -132,10 +144,11 @@ export interface ActiveAlarm {
   id: string
   device_id: string
   device_name: string
-  major_id: number
-  sub_section: number
-  fault_type: number
-  severity: number
+  domain: number
+  module: number
+  alarm_type: number
+  alarm_index: number
+  severity: AlarmSeverity
   alarm_code: number
   state: 'active' | 'acknowledged' | 'resolved'
   triggered_at: string

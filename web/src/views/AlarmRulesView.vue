@@ -98,7 +98,9 @@ onMounted(load)
         <div v-if="kind === 'fault_code'" class="mt-3">
           <select v-model="severity" class="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm">
             <option value="info">info</option>
-            <option value="warn">warn</option>
+            <option value="warning">warning</option>
+            <option value="minor">minor</option>
+            <option value="major">major</option>
             <option value="critical">critical</option>
           </select>
         </div>

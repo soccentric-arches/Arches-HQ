@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14\x61rcheshq/agent.proto\x12\x0e\x61rcheshq.agent\"\x99\x03\n\nAgentFrame\x12=\n\x11pairing_handshake\x18\x01 \x01(\x0b\x32 .archeshq.agent.PairingHandshakeH\x00\x12.\n\theartbeat\x18\x02 \x01(\x0b\x32\x19.archeshq.agent.HeartbeatH\x00\x12\x39\n\x0ftelemetry_batch\x18\x03 \x01(\x0b\x32\x1e.archeshq.agent.TelemetryBatchH\x00\x12\x31\n\x0b\x66\x61ult_event\x18\x04 \x01(\x0b\x32\x1a.archeshq.agent.FaultEventH\x00\x12>\n\x12log_upload_request\x18\x05 \x01(\x0b\x32 .archeshq.agent.LogUploadRequestH\x00\x12\x31\n\x0b\x63ommand_ack\x18\x06 \x01(\x0b\x32\x1a.archeshq.agent.CommandAckH\x00\x12\x33\n\x0c\x61gent_report\x18\x07 \x01(\x0b\x32\x1b.archeshq.agent.AgentReportH\x00\x42\x06\n\x04\x62ody\")\n\x10PairingHandshake\x12\x15\n\rpairing_token\x18\x01 \x01(\t\"h\n\tHeartbeat\x12\x11\n\tdevice_id\x18\x01 \x01(\t\x12\x18\n\x10\x63redential_token\x18\x02 \x01(\t\x12\x17\n\x0fsent_at_unix_ms\x18\x03 \x01(\x03\x12\x15\n\ragent_version\x18\x04 \x01(\t\"n\n\x0eTelemetryBatch\x12\x30\n\x07samples\x18\x01 \x03(\x0b\x32\x1f.archeshq.agent.TelemetrySample\x12*\n\x08location\x18\x02 \x01(\x0b\x32\x18.archeshq.agent.Location\"\xb3\x01\n\x0fTelemetrySample\x12\x0e\n\x06metric\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01\x12\x1b\n\x13recorded_at_unix_ms\x18\x03 \x01(\x03\x12\x37\n\x04tags\x18\x04 \x03(\x0b\x32).archeshq.agent.TelemetrySample.TagsEntry\x1a+\n\tTagsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xb4\x01\n\x08Location\x12\x0b\n\x03lat\x18\x01 \x01(\x01\x12\x0b\n\x03lon\x18\x02 \x01(\x01\x12\x12\n\naccuracy_m\x18\x03 \x01(\x01\x12/\n\x06source\x18\x04 \x01(\x0e\x32\x1f.archeshq.agent.Location.Source\x12\x1b\n\x13recorded_at_unix_ms\x18\x05 \x01(\x03\",\n\x06Source\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x08\n\x04GNSS\x10\x01\x12\x0b\n\x07NETWORK\x10\x02\"\x8c\x02\n\nFaultEvent\x12\x0c\n\x04\x63ode\x18\x01 \x01(\t\x12\x35\n\x08severity\x18\x02 \x01(\x0e\x32#.archeshq.agent.FaultEvent.Severity\x12\x0f\n\x07message\x18\x03 \x01(\t\x12-\n\x04kind\x18\x04 \x01(\x0e\x32\x1f.archeshq.agent.FaultEvent.Kind\x12\x12\n\nat_unix_ms\x18\x05 \x01(\x03\x12\x16\n\x0e\x66\x61ult_code_ref\x18\x06 \x01(\t\",\n\x08Severity\x12\x08\n\x04INFO\x10\x00\x12\x08\n\x04WARN\x10\x01\x12\x0c\n\x08\x43RITICAL\x10\x02\"\x1f\n\x04Kind\x12\n\n\x06RAISED\x10\x00\x12\x0b\n\x07\x43LEARED\x10\x01\"\xca\x01\n\x10LogUploadRequest\x12\x33\n\x04kind\x18\x01 \x01(\x0e\x32%.archeshq.agent.LogUploadRequest.Kind\x12 \n\x18time_range_start_unix_ms\x18\x02 \x01(\x03\x12\x1e\n\x16time_range_end_unix_ms\x18\x03 \x01(\x03\x12\x1b\n\x13size_bytes_estimate\x18\x04 \x01(\x03\"\"\n\x04Kind\x12\x0e\n\nLOG_BUNDLE\x10\x00\x12\n\n\x06\x42\x41\x43KUP\x10\x01\"@\n\nCommandAck\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x0f\n\x07success\x18\x02 \x01(\x08\x12\r\n\x05\x65rror\x18\x03 \x01(\t\"\"\n\x0b\x41gentReport\x12\x13\n\x0breport_json\x18\x01 \x01(\t\"\xef\x01\n\x0bServerFrame\x12\x37\n\x0epairing_result\x18\x01 \x01(\x0b\x32\x1d.archeshq.agent.PairingResultH\x00\x12\x35\n\rheartbeat_ack\x18\x02 \x01(\x0b\x32\x1c.archeshq.agent.HeartbeatAckH\x00\x12*\n\x07\x63ommand\x18\x03 \x01(\x0b\x32\x17.archeshq.agent.CommandH\x00\x12<\n\x11signed_upload_url\x18\x04 \x01(\x0b\x32\x1f.archeshq.agent.SignedUploadUrlH\x00\x42\x06\n\x04\x62ody\"\\\n\rPairingResult\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12\x11\n\tdevice_id\x18\x03 \x01(\t\x12\x18\n\x10\x63redential_token\x18\x04 \x01(\t\"N\n\x0cHeartbeatAck\x12\x1b\n\x13server_time_unix_ms\x18\x01 \x01(\x03\x12!\n\x19next_heartbeat_interval_s\x18\x02 \x01(\x05\"\x84\x03\n\x07\x43ommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x38\n\x0ftake_backup_now\x18\x02 \x01(\x0b\x32\x1d.archeshq.agent.TakeBackupNowH\x00\x12*\n\x07restore\x18\x03 \x01(\x0b\x32\x17.archeshq.agent.RestoreH\x00\x12\x35\n\rfactory_reset\x18\x04 \x01(\x0b\x32\x1c.archeshq.agent.FactoryResetH\x00\x12\x33\n\x0c\x61pply_update\x18\x05 \x01(\x0b\x32\x1b.archeshq.agent.ApplyUpdateH\x00\x12(\n\x06reboot\x18\x06 \x01(\x0b\x32\x16.archeshq.agent.RebootH\x00\x12,\n\x08shutdown\x18\x07 \x01(\x0b\x32\x18.archeshq.agent.ShutdownH\x00\x12\x33\n\x0c\x61pply_config\x18\x08 \x01(\x0b\x32\x1b.archeshq.agent.ApplyConfigH\x00\x42\x06\n\x04kind\"\x08\n\x06Reboot\"\n\n\x08Shutdown\"\x1e\n\x0b\x41pplyConfig\x12\x0f\n\x07section\x18\x01 \x01(\t\"\x0f\n\rTakeBackupNow\"&\n\x07Restore\x12\x1b\n\x13\x62\x61\x63kup_download_url\x18\x01 \x01(\t\"\x0e\n\x0c\x46\x61\x63toryReset\"Z\n\x0b\x41pplyUpdate\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x1d\n\x15\x61rtifact_download_url\x18\x02 \x01(\t\x12\x17\n\x0f\x63hecksum_sha256\x18\x03 \x01(\t\"V\n\x0fSignedUploadUrl\x12\x13\n\x0brequest_ref\x18\x01 \x01(\t\x12\x12\n\nupload_url\x18\x02 \x01(\t\x12\x1a\n\x12\x65xpires_at_unix_ms\x18\x03 \x01(\x03\x32S\n\tAgentLink\x12\x46\n\x07\x43onnect\x12\x1a.archeshq.agent.AgentFrame\x1a\x1b.archeshq.agent.ServerFrame(\x01\x30\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14\x61rcheshq/agent.proto\x12\x0e\x61rcheshq.agent\"\x99\x03\n\nAgentFrame\x12=\n\x11pairing_handshake\x18\x01 \x01(\x0b\x32 .archeshq.agent.PairingHandshakeH\x00\x12.\n\theartbeat\x18\x02 \x01(\x0b\x32\x19.archeshq.agent.HeartbeatH\x00\x12\x39\n\x0ftelemetry_batch\x18\x03 \x01(\x0b\x32\x1e.archeshq.agent.TelemetryBatchH\x00\x12\x31\n\x0b\x66\x61ult_event\x18\x04 \x01(\x0b\x32\x1a.archeshq.agent.FaultEventH\x00\x12>\n\x12log_upload_request\x18\x05 \x01(\x0b\x32 .archeshq.agent.LogUploadRequestH\x00\x12\x31\n\x0b\x63ommand_ack\x18\x06 \x01(\x0b\x32\x1a.archeshq.agent.CommandAckH\x00\x12\x33\n\x0c\x61gent_report\x18\x07 \x01(\x0b\x32\x1b.archeshq.agent.AgentReportH\x00\x42\x06\n\x04\x62ody\")\n\x10PairingHandshake\x12\x15\n\rpairing_token\x18\x01 \x01(\t\"h\n\tHeartbeat\x12\x11\n\tdevice_id\x18\x01 \x01(\t\x12\x18\n\x10\x63redential_token\x18\x02 \x01(\t\x12\x17\n\x0fsent_at_unix_ms\x18\x03 \x01(\x03\x12\x15\n\ragent_version\x18\x04 \x01(\t\"n\n\x0eTelemetryBatch\x12\x30\n\x07samples\x18\x01 \x03(\x0b\x32\x1f.archeshq.agent.TelemetrySample\x12*\n\x08location\x18\x02 \x01(\x0b\x32\x18.archeshq.agent.Location\"\xb3\x01\n\x0fTelemetrySample\x12\x0e\n\x06metric\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01\x12\x1b\n\x13recorded_at_unix_ms\x18\x03 \x01(\x03\x12\x37\n\x04tags\x18\x04 \x03(\x0b\x32).archeshq.agent.TelemetrySample.TagsEntry\x1a+\n\tTagsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xb4\x01\n\x08Location\x12\x0b\n\x03lat\x18\x01 \x01(\x01\x12\x0b\n\x03lon\x18\x02 \x01(\x01\x12\x12\n\naccuracy_m\x18\x03 \x01(\x01\x12/\n\x06source\x18\x04 \x01(\x0e\x32\x1f.archeshq.agent.Location.Source\x12\x1b\n\x13recorded_at_unix_ms\x18\x05 \x01(\x03\",\n\x06Source\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x08\n\x04GNSS\x10\x01\x12\x0b\n\x07NETWORK\x10\x02\"\xa2\x02\n\nFaultEvent\x12\x0c\n\x04\x63ode\x18\x01 \x01(\t\x12\x35\n\x08severity\x18\x02 \x01(\x0e\x32#.archeshq.agent.FaultEvent.Severity\x12\x0f\n\x07message\x18\x03 \x01(\t\x12-\n\x04kind\x18\x04 \x01(\x0e\x32\x1f.archeshq.agent.FaultEvent.Kind\x12\x12\n\nat_unix_ms\x18\x05 \x01(\x03\x12\x16\n\x0e\x66\x61ult_code_ref\x18\x06 \x01(\t\"B\n\x08Severity\x12\x08\n\x04INFO\x10\x00\x12\x08\n\x04WARN\x10\x01\x12\x0c\n\x08\x43RITICAL\x10\x02\x12\t\n\x05MINOR\x10\x03\x12\t\n\x05MAJOR\x10\x04\"\x1f\n\x04Kind\x12\n\n\x06RAISED\x10\x00\x12\x0b\n\x07\x43LEARED\x10\x01\"\xca\x01\n\x10LogUploadRequest\x12\x33\n\x04kind\x18\x01 \x01(\x0e\x32%.archeshq.agent.LogUploadRequest.Kind\x12 \n\x18time_range_start_unix_ms\x18\x02 \x01(\x03\x12\x1e\n\x16time_range_end_unix_ms\x18\x03 \x01(\x03\x12\x1b\n\x13size_bytes_estimate\x18\x04 \x01(\x03\"\"\n\x04Kind\x12\x0e\n\nLOG_BUNDLE\x10\x00\x12\n\n\x06\x42\x41\x43KUP\x10\x01\"@\n\nCommandAck\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x0f\n\x07success\x18\x02 \x01(\x08\x12\r\n\x05\x65rror\x18\x03 \x01(\t\"\"\n\x0b\x41gentReport\x12\x13\n\x0breport_json\x18\x01 \x01(\t\"\xef\x01\n\x0bServerFrame\x12\x37\n\x0epairing_result\x18\x01 \x01(\x0b\x32\x1d.archeshq.agent.PairingResultH\x00\x12\x35\n\rheartbeat_ack\x18\x02 \x01(\x0b\x32\x1c.archeshq.agent.HeartbeatAckH\x00\x12*\n\x07\x63ommand\x18\x03 \x01(\x0b\x32\x17.archeshq.agent.CommandH\x00\x12<\n\x11signed_upload_url\x18\x04 \x01(\x0b\x32\x1f.archeshq.agent.SignedUploadUrlH\x00\x42\x06\n\x04\x62ody\"\\\n\rPairingResult\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12\x11\n\tdevice_id\x18\x03 \x01(\t\x12\x18\n\x10\x63redential_token\x18\x04 \x01(\t\"N\n\x0cHeartbeatAck\x12\x1b\n\x13server_time_unix_ms\x18\x01 \x01(\x03\x12!\n\x19next_heartbeat_interval_s\x18\x02 \x01(\x05\"\x84\x03\n\x07\x43ommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x38\n\x0ftake_backup_now\x18\x02 \x01(\x0b\x32\x1d.archeshq.agent.TakeBackupNowH\x00\x12*\n\x07restore\x18\x03 \x01(\x0b\x32\x17.archeshq.agent.RestoreH\x00\x12\x35\n\rfactory_reset\x18\x04 \x01(\x0b\x32\x1c.archeshq.agent.FactoryResetH\x00\x12\x33\n\x0c\x61pply_update\x18\x05 \x01(\x0b\x32\x1b.archeshq.agent.ApplyUpdateH\x00\x12(\n\x06reboot\x18\x06 \x01(\x0b\x32\x16.archeshq.agent.RebootH\x00\x12,\n\x08shutdown\x18\x07 \x01(\x0b\x32\x18.archeshq.agent.ShutdownH\x00\x12\x33\n\x0c\x61pply_config\x18\x08 \x01(\x0b\x32\x1b.archeshq.agent.ApplyConfigH\x00\x42\x06\n\x04kind\"\x08\n\x06Reboot\"\n\n\x08Shutdown\"\x1e\n\x0b\x41pplyConfig\x12\x0f\n\x07section\x18\x01 \x01(\t\"\x0f\n\rTakeBackupNow\"&\n\x07Restore\x12\x1b\n\x13\x62\x61\x63kup_download_url\x18\x01 \x01(\t\"\x0e\n\x0c\x46\x61\x63toryReset\"Z\n\x0b\x41pplyUpdate\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x1d\n\x15\x61rtifact_download_url\x18\x02 \x01(\t\x12\x17\n\x0f\x63hecksum_sha256\x18\x03 \x01(\t\"V\n\x0fSignedUploadUrl\x12\x13\n\x0brequest_ref\x18\x01 \x01(\t\x12\x12\n\nupload_url\x18\x02 \x01(\t\x12\x1a\n\x12\x65xpires_at_unix_ms\x18\x03 \x01(\x03\x32S\n\tAgentLink\x12\x46\n\x07\x43onnect\x12\x1a.archeshq.agent.AgentFrame\x1a\x1b.archeshq.agent.ServerFrame(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -50,43 +50,43 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_LOCATION_SOURCE']._serialized_start=1032
   _globals['_LOCATION_SOURCE']._serialized_end=1076
   _globals['_FAULTEVENT']._serialized_start=1079
-  _globals['_FAULTEVENT']._serialized_end=1347
+  _globals['_FAULTEVENT']._serialized_end=1369
   _globals['_FAULTEVENT_SEVERITY']._serialized_start=1270
-  _globals['_FAULTEVENT_SEVERITY']._serialized_end=1314
-  _globals['_FAULTEVENT_KIND']._serialized_start=1316
-  _globals['_FAULTEVENT_KIND']._serialized_end=1347
-  _globals['_LOGUPLOADREQUEST']._serialized_start=1350
-  _globals['_LOGUPLOADREQUEST']._serialized_end=1552
-  _globals['_LOGUPLOADREQUEST_KIND']._serialized_start=1518
-  _globals['_LOGUPLOADREQUEST_KIND']._serialized_end=1552
-  _globals['_COMMANDACK']._serialized_start=1554
-  _globals['_COMMANDACK']._serialized_end=1618
-  _globals['_AGENTREPORT']._serialized_start=1620
-  _globals['_AGENTREPORT']._serialized_end=1654
-  _globals['_SERVERFRAME']._serialized_start=1657
-  _globals['_SERVERFRAME']._serialized_end=1896
-  _globals['_PAIRINGRESULT']._serialized_start=1898
-  _globals['_PAIRINGRESULT']._serialized_end=1990
-  _globals['_HEARTBEATACK']._serialized_start=1992
-  _globals['_HEARTBEATACK']._serialized_end=2070
-  _globals['_COMMAND']._serialized_start=2073
-  _globals['_COMMAND']._serialized_end=2461
-  _globals['_REBOOT']._serialized_start=2463
-  _globals['_REBOOT']._serialized_end=2471
-  _globals['_SHUTDOWN']._serialized_start=2473
-  _globals['_SHUTDOWN']._serialized_end=2483
-  _globals['_APPLYCONFIG']._serialized_start=2485
-  _globals['_APPLYCONFIG']._serialized_end=2515
-  _globals['_TAKEBACKUPNOW']._serialized_start=2517
-  _globals['_TAKEBACKUPNOW']._serialized_end=2532
-  _globals['_RESTORE']._serialized_start=2534
-  _globals['_RESTORE']._serialized_end=2572
-  _globals['_FACTORYRESET']._serialized_start=2574
-  _globals['_FACTORYRESET']._serialized_end=2588
-  _globals['_APPLYUPDATE']._serialized_start=2590
-  _globals['_APPLYUPDATE']._serialized_end=2680
-  _globals['_SIGNEDUPLOADURL']._serialized_start=2682
-  _globals['_SIGNEDUPLOADURL']._serialized_end=2768
-  _globals['_AGENTLINK']._serialized_start=2770
-  _globals['_AGENTLINK']._serialized_end=2853
+  _globals['_FAULTEVENT_SEVERITY']._serialized_end=1336
+  _globals['_FAULTEVENT_KIND']._serialized_start=1338
+  _globals['_FAULTEVENT_KIND']._serialized_end=1369
+  _globals['_LOGUPLOADREQUEST']._serialized_start=1372
+  _globals['_LOGUPLOADREQUEST']._serialized_end=1574
+  _globals['_LOGUPLOADREQUEST_KIND']._serialized_start=1540
+  _globals['_LOGUPLOADREQUEST_KIND']._serialized_end=1574
+  _globals['_COMMANDACK']._serialized_start=1576
+  _globals['_COMMANDACK']._serialized_end=1640
+  _globals['_AGENTREPORT']._serialized_start=1642
+  _globals['_AGENTREPORT']._serialized_end=1676
+  _globals['_SERVERFRAME']._serialized_start=1679
+  _globals['_SERVERFRAME']._serialized_end=1918
+  _globals['_PAIRINGRESULT']._serialized_start=1920
+  _globals['_PAIRINGRESULT']._serialized_end=2012
+  _globals['_HEARTBEATACK']._serialized_start=2014
+  _globals['_HEARTBEATACK']._serialized_end=2092
+  _globals['_COMMAND']._serialized_start=2095
+  _globals['_COMMAND']._serialized_end=2483
+  _globals['_REBOOT']._serialized_start=2485
+  _globals['_REBOOT']._serialized_end=2493
+  _globals['_SHUTDOWN']._serialized_start=2495
+  _globals['_SHUTDOWN']._serialized_end=2505
+  _globals['_APPLYCONFIG']._serialized_start=2507
+  _globals['_APPLYCONFIG']._serialized_end=2537
+  _globals['_TAKEBACKUPNOW']._serialized_start=2539
+  _globals['_TAKEBACKUPNOW']._serialized_end=2554
+  _globals['_RESTORE']._serialized_start=2556
+  _globals['_RESTORE']._serialized_end=2594
+  _globals['_FACTORYRESET']._serialized_start=2596
+  _globals['_FACTORYRESET']._serialized_end=2610
+  _globals['_APPLYUPDATE']._serialized_start=2612
+  _globals['_APPLYUPDATE']._serialized_end=2702
+  _globals['_SIGNEDUPLOADURL']._serialized_start=2704
+  _globals['_SIGNEDUPLOADURL']._serialized_end=2790
+  _globals['_AGENTLINK']._serialized_start=2792
+  _globals['_AGENTLINK']._serialized_end=2875
 # @@protoc_insertion_point(module_scope)

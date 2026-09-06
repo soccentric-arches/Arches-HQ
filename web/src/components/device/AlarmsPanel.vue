@@ -48,7 +48,24 @@ function alarmTone(state: string) {
   return state === 'active' ? 'danger' : state === 'acknowledged' ? 'warning' : 'success'
 }
 
-// Render a packed 4-byte alarm_code as a hex string, e.g. 0x01020304.
+// Severity chips for the five X.733 levels (Task.md C-05). MAJOR and MINOR
+// used to have no representation at all.
+function severityTone(severity: string) {
+  switch (severity) {
+    case 'critical':
+      return 'danger'
+    case 'major':
+      return 'danger'
+    case 'minor':
+      return 'warning'
+    case 'warning':
+      return 'warning'
+    default:
+      return 'neutral'
+  }
+}
+
+// Render a packed alarm_code as a hex string, e.g. 0x10410007.
 function alarmCodeHex(code: number) {
   return `0x${code.toString(16).padStart(8, '0')}`
 }
@@ -145,9 +162,10 @@ onUnmounted(() => {
       <thead class="border-b border-border bg-surface-muted text-xs uppercase text-muted-foreground">
         <tr>
           <th class="px-4 py-2 font-medium">Code</th>
-          <th class="px-4 py-2 font-medium">Major</th>
-          <th class="px-4 py-2 font-medium">Sub</th>
-          <th class="px-4 py-2 font-medium">Fault</th>
+          <th class="px-4 py-2 font-medium">Domain</th>
+          <th class="px-4 py-2 font-medium">Module</th>
+          <th class="px-4 py-2 font-medium">Type</th>
+          <th class="px-4 py-2 font-medium">Index</th>
           <th class="px-4 py-2 font-medium">Severity</th>
           <th class="px-4 py-2 font-medium">State</th>
           <th class="px-4 py-2 font-medium">Triggered</th>
@@ -157,10 +175,13 @@ onUnmounted(() => {
       <tbody>
         <tr v-for="a in alarms" :key="a.id" class="border-b border-border last:border-0">
           <td class="px-4 py-2 font-mono text-xs">{{ alarmCodeHex(a.alarm_code) }}</td>
-          <td class="px-4 py-2">{{ a.major_id }}</td>
-          <td class="px-4 py-2">{{ a.sub_section }}</td>
-          <td class="px-4 py-2">{{ a.fault_type }}</td>
-          <td class="px-4 py-2">{{ a.severity }}</td>
+          <td class="px-4 py-2">{{ a.domain }}</td>
+          <td class="px-4 py-2">{{ a.module }}</td>
+          <td class="px-4 py-2">{{ a.alarm_type }}</td>
+          <td class="px-4 py-2">{{ a.alarm_index }}</td>
+          <td class="px-4 py-2">
+            <Badge :tone="severityTone(a.severity)" class="capitalize">{{ a.severity }}</Badge>
+          </td>
           <td class="px-4 py-2">
             <Badge :tone="alarmTone(a.state)" class="capitalize">{{ a.state }}</Badge>
           </td>

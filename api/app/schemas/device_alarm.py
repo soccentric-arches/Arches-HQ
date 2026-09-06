@@ -3,23 +3,29 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.enums import AlarmState
+from app.models.enums import AlarmState, FaultSeverity
 from app.schemas.common import Page
 
 
 class DeviceAlarmIn(BaseModel):
     """Device-reported alarm ingest payload (R3).
 
-    ``alarm_code`` is the packed 4-byte alarm code as a hex string, e.g.
-    ``"0x01020304"``. The server decodes it into major_id / sub_section /
-    fault_type / severity using the byte order documented on the router
-    (byte 0 = major_id, byte 1 = sub_section, byte 2 = fault_type,
-    byte 3 = severity -- big-endian, byte 0 most significant).
+    ``alarm_code`` is the packed 32-bit alarm code as a hex string, e.g.
+    ``"0x10410007"``. The server decodes it into domain / module / alarm_type /
+    index using the locked layout documented on the router and in
+    ``Arches-Instrumentation/catalog/alarms.yaml``.
+
+    ``severity`` is reported separately rather than extracted from the code --
+    an alarm's severity can change over its life. It defaults to ``warning``
+    when omitted; once HQ consumes the alarm catalog (Task.md C-07) the default
+    should come from the catalog entry for this alarm id instead.
+
     ``triggered_at`` is the device-side timestamp, stored verbatim.
     """
 
     alarm_code: str
     triggered_at: datetime
+    severity: FaultSeverity = FaultSeverity.warning
 
 
 class DeviceAlarmOut(BaseModel):
@@ -27,10 +33,11 @@ class DeviceAlarmOut(BaseModel):
 
     id: UUID
     device_id: UUID
-    major_id: int
-    sub_section: int
-    fault_type: int
-    severity: int
+    domain: int
+    module: int
+    alarm_type: int
+    alarm_index: int
+    severity: FaultSeverity
     alarm_code: int
     state: AlarmState
     triggered_at: datetime
@@ -48,10 +55,11 @@ class ActiveAlarmOut(BaseModel):
     id: UUID
     device_id: UUID
     device_name: str
-    major_id: int
-    sub_section: int
-    fault_type: int
-    severity: int
+    domain: int
+    module: int
+    alarm_type: int
+    alarm_index: int
+    severity: FaultSeverity
     alarm_code: int
     state: AlarmState
     triggered_at: datetime

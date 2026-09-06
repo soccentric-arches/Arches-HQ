@@ -20,9 +20,33 @@ class CredentialKind(str, enum.Enum):
 
 
 class FaultSeverity(str, enum.Enum):
+    """The five X.733 perceived-severity levels.
+
+    Arches-Instrumentation uses the full X.733 set (REQ.md section 8,
+    common.Severity) and catalog/alarms.yaml uses MAJOR and MINOR heavily --
+    they are among the first entries in the file. This enum previously carried
+    only info / warn / critical, so MAJOR and MINOR had nowhere to land and
+    were being flattened into neighbouring levels on ingest.
+
+    Ordered least to most severe; see SEVERITY_ORDER for the ranking used by
+    severity-ordered queries. See Task.md C-05.
+    """
+
     info = "info"
-    warn = "warn"
+    warning = "warning"
+    minor = "minor"
+    major = "major"
     critical = "critical"
+
+
+#: Rank for severity-ordered sorting and thresholds. Higher is more severe.
+SEVERITY_ORDER: dict[FaultSeverity, int] = {
+    FaultSeverity.info: 0,
+    FaultSeverity.warning: 1,
+    FaultSeverity.minor: 2,
+    FaultSeverity.major: 3,
+    FaultSeverity.critical: 4,
+}
 
 
 class AlarmState(str, enum.Enum):
