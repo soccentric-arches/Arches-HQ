@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Device } from '@/lib/types'
 import Card from '@/components/ui/Card.vue'
+import SpokesHealthCard from '@/components/device/SpokesHealthCard.vue'
 
 const props = defineProps<{ device: Device }>()
 
@@ -23,7 +24,7 @@ const fields = [
 </script>
 
 <template>
-  <div>
+  <div class="grid gap-4">
     <!-- Vertical spec list: label left, value right, hairline between rows. -->
     <Card class="overflow-hidden p-0">
       <ul class="divide-y divide-border">
@@ -43,5 +44,8 @@ const fields = [
         heartbeats — they are blank until the device comes online.
       </p>
     </Card>
+
+    <!-- Health score + per-spoke status (Task.md F-05). -->
+    <SpokesHealthCard :device="device" />
   </div>
 </template>

@@ -40,6 +40,24 @@ function deviceAlarmResponse(state: DeviceAlarm['state'] = 'active'): DeviceAlar
         state,
         triggered_at: '2026-07-30T12:00:00Z',
         resolved_at: null,
+        // C-06 transport fields, as the gateway now stores them.
+        owner: 'arches-client',
+        count: 3,
+        acknowledged: false,
+        needs_snapshot: false,
+        first_seen_at: '2026-07-30T11:00:00Z',
+        last_seen_at: '2026-07-30T12:00:00Z',
+        correlated: [0x10410008],
+        // C-07: catalog rendering fields joined at the API.
+        catalog: {
+          name: 'hw_device_fail',
+          probable_cause: 'hardware-malfunction',
+          specific_problem: 'device-failure',
+          description: 'Hardware device failure detected by the Hardware daemon.',
+          escalation: 'none',
+          auto_clear: 'manual',
+          hq_reportable: true,
+        },
       },
     ],
     page: { total: 1, limit: 100, offset: 0 },
@@ -93,18 +111,28 @@ describe('AlarmsPanel', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders the decoded locked-layout fields and hex alarm_code', async () => {
+  it('renders the hex alarm_code with its catalog name and description', async () => {
     const wrapper = await mountAsOperator()
 
     const html = wrapper.html()
     // The catalog's worked example: hardware / Hardware daemon / equipment /
-    // alarm 7 (Arches-Instrumentation REQ.md section 8).
+    // alarm 7 (Arches-Instrumentation REQ.md section 8). Since C-07 the panel
+    // renders the catalog's symbolic name and description beside the packed
+    // hex code instead of four bare numeric columns.
     expect(html).toContain('0x10410007')
-    expect(html).toContain('Domain')
-    expect(html).toContain('Module')
-    expect(html).toContain('Index')
+    expect(wrapper.text()).toContain('hw_device_fail')
+    expect(wrapper.text()).toContain('Hardware device failure detected by the Hardware daemon.')
+    expect(html).toContain('Alarm')
     expect(html).toContain('Severity')
     expect(wrapper.text()).toContain('active')
+  })
+
+  it('renders the owning application and correlated alarm codes', async () => {
+    const wrapper = await mountAsOperator()
+
+    const text = wrapper.text()
+    expect(text).toContain('owner: arches-client')
+    expect(text).toContain('correlated: 0x10410008')
   })
 
   it('renders severity as a named X.733 level, not a bare number', async () => {

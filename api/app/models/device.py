@@ -38,6 +38,16 @@ class Device(Base, TenantScopedMixin):
     sw_version: Mapped[str | None] = mapped_column(nullable=True)
     # From Heartbeat.agent_version; NULL until the device first connects.
     agent_version: Mapped[str | None] = mapped_column(nullable=True)
+    # The device's own Ed25519 session public key (base64), presented at
+    # pairing and verified against every Heartbeat signature (Task.md C-02:
+    # the device authenticates by signing, HQ never issues it a bearer
+    # credential). NULL for legacy devices that paired before the signature
+    # model and still authenticate with a stored credential token.
+    agent_pubkey: Mapped[str | None] = mapped_column(nullable=True)
+    # Latest device health score (0..1) and per-spoke status summary, from
+    # the AgentReport document the device pushes periodically (Task.md F-05).
+    health_score: Mapped[float | None] = mapped_column(nullable=True)
+    spoke_status: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # AgentReport frames (hardware inventory, running services, network
     # status) stored verbatim as a JSON document. Shape is co-owned with
     # Arches-Configuration; the web UI renders it defensively.

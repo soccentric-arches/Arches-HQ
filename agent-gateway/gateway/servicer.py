@@ -27,9 +27,14 @@ from archeshq.agent_pb2 import HeartbeatAck, PairingResult, ServerFrame, SignedU
 from archeshq.agent_pb2_grpc import AgentLinkServicer as _AgentLinkServicer
 
 from gateway import handlers
-from gateway.auth import PairingError, redeem_pairing_token, validate_long_lived_credential
+from gateway.auth import (
+    PairingError,
+    redeem_pairing_token,
+    validate_heartbeat,
+)
 from gateway.config import get_gateway_settings
 from gateway.connection_manager import manager
+from app.services import config_signing
 
 logger = logging.getLogger("gateway.servicer")
 
@@ -44,10 +49,13 @@ class AgentLinkServicer(_AgentLinkServicer):
 
         if first.HasField("pairing_handshake"):
             token = first.pairing_handshake.pairing_token
+            pubkey = first.pairing_handshake.pubkey_b64
             async with session_factory() as session:
-                async for out in self._handle_pairing(session, token):
+                async for out in self._handle_pairing(session, token, pubkey):
                     yield out
-            return  # device reconnects with a Heartbeat using its new credential
+            # The device reconnects: with a signed Heartbeat under its own
+            # key (C-02), or with its credential for a legacy pairing.
+            return
 
         if not first.HasField("heartbeat"):
             await context.abort(
@@ -58,9 +66,7 @@ class AgentLinkServicer(_AgentLinkServicer):
 
         device_id = first.heartbeat.device_id
         async with session_factory() as session:
-            device = await validate_long_lived_credential(
-                session, device_id, first.heartbeat.credential_token
-            )
+            device = await validate_heartbeat(session, device_id, first.heartbeat)
             if device is None:
                 await context.abort(
                     grpc.StatusCode.UNAUTHENTICATED, "invalid credential or device disabled"
@@ -129,9 +135,7 @@ class AgentLinkServicer(_AgentLinkServicer):
 
     async def _reauth(self, session, device_id: str, frame) -> bool:
         if frame.HasField("heartbeat"):
-            device = await validate_long_lived_credential(
-                session, device_id, frame.heartbeat.credential_token
-            )
+            device = await validate_heartbeat(session, device_id, frame.heartbeat)
             return device is not None
         # Non-heartbeat frames carry no token; cheaply confirm the device
         # hasn't been disabled/revoked mid-connection.
@@ -188,20 +192,30 @@ class AgentLinkServicer(_AgentLinkServicer):
                 session, device, ack.command_id, ack.success, ack.error
             )
             return []
+        if frame.HasField("alarm_event"):
+            await handlers.handle_alarm_event(session, device, frame.alarm_event)
+            return []
+        if frame.HasField("backup_status"):
+            await handlers.handle_backup_status(session, device, frame.backup_status)
+            return []
         return []
 
-    async def _handle_pairing(self, session, raw_token: str):
+    async def _handle_pairing(self, session, raw_token: str, pubkey_b64: str = ""):
         try:
-            device, long_lived = await redeem_pairing_token(session, raw_token)
+            device, long_lived = await redeem_pairing_token(session, raw_token, pubkey_b64)
             await session.commit()
         except PairingError as exc:
             yield ServerFrame(pairing_result=PairingResult(success=False, error=str(exc)))
             return
-        yield ServerFrame(
-            pairing_result=PairingResult(
-                success=True, device_id=str(device.id), credential_token=long_lived
-            )
-        )
+        result = PairingResult(success=True, device_id=str(device.id), credential_token=long_lived)
+        if device.agent_pubkey:
+            # The device authenticated by presenting its own signing key; hand
+            # it HQ's config-signing PUBLIC key (C-10) over this pairing-token
+            # authenticated exchange, so later SignedConfig pushes verify.
+            key = config_signing.get_config_signing_key()
+            result.config_pubkey_b64 = key.public_key_b64
+            result.config_key_id = key.key_id
+        yield ServerFrame(pairing_result=result)
 
 
 def _now_ms() -> int:

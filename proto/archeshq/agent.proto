@@ -29,22 +29,92 @@ message AgentFrame {
     // Arches-Configuration) so HQ can render it without a proto bump per
     // field -- see Device.reported.
     AgentReport agent_report = 7;
+    // X.733 alarm notification raised, changed or cleared on the device
+    // (Task.md C-06). The canonical alarm-code layout is the one locked in
+    // Arches-Instrumentation's catalog/alarms.yaml: [31:28] domain, [27:20]
+    // module, [19:16] type, [15:0] index. Severity is NOT in the code.
+    AlarmEvent alarm_event = 8;
+    // Completion report for a backup archive the device produced (C-12),
+    // correlated with the SignedUploadUrl the device received for it.
+    BackupStatus backup_status = 9;
   }
+}
+
+// Alarm transport from device to HQ (Task.md C-06). One frame per alarm
+// action, not per row: first_seen/last_seen/count carry what the device's
+// alarm daemon already aggregates, so HQ stores the same fact the device
+// holds instead of recounting.
+message AlarmEvent {
+  // Packed 32-bit alarm code against the locked catalog layout.
+  uint32 alarm_id = 1;
+  enum Action {
+    RAISE = 0;
+    CLEAR = 1;
+    ACK = 2;
+    SEVERITY_CHANGE = 3;
+  }
+  Action action = 2;
+  // X.733 perceived severity, same vocabulary as FaultEvent.Severity.
+  FaultEvent.Severity severity = 3;
+  // Declaring application (Instrumentation R5: only an application declares
+  // or clears an alarm; the alarms daemon relays on their behalf).
+  string owner = 4;
+  string additional_text = 5;
+  uint32 count = 6;
+  bool acknowledged = 7;
+  // Set on a CRITICAL raise: the device already captured a diagnostic
+  // snapshot; HQ surfaces it on the timeline.
+  bool needs_snapshot = 8;
+  int64 first_seen_unix_ms = 9;
+  int64 last_seen_unix_ms = 10;
+  // X.733 correlated notifications (catalog escalation chains).
+  repeated uint32 correlated = 11;
+}
+
+// Device's report that a backup archive it produced is complete (C-12).
+// The blob itself went to the object store via the SignedUploadUrl answer
+// to a LogUploadRequest(kind=BACKUP) issued before this frame.
+message BackupStatus {
+  string name = 1;
+  uint64 size_bytes = 2;
+  int64 created_at_unix_ms = 3;
+  string checksum_sha256 = 4;
+  bool success = 5;
+  string error = 6;
 }
 
 // First frame on a new connection when the device only holds a single-use
 // pairing token (not yet a long-lived credential).
+//
+// Auth model (Task.md C-02, the recorded middle): the device GENERATES its
+// own Ed25519 session key pair and presents only the public key here; HQ
+// binds it to the device at pairing and verifies a per-session signature on
+// every Heartbeat (sig_b64). No bearer credential is ever stored on the
+// device, so opening one device yields nothing that can impersonate the
+// fleet -- the property Instrumentation's REQ §9 demands.
 message PairingHandshake {
   string pairing_token = 1;
+  // Device-generated Ed25519 public key (base64, 32 bytes raw).
+  string pubkey_b64 = 2;
 }
 
-// First (and every subsequent) frame on a connection once the device holds
-// a long-lived credential. Also doubles as the periodic keepalive.
+// First (and every subsequent) frame on a connection once the device is
+// paired. Also doubles as the periodic keepalive.
+//
+// credential_token is the legacy bearer form, retained for wire
+// compatibility with agents enrolled before the C-02 rework; a device that
+// presents only a token is accepted only while it also holds a stored
+// credential row (see gateway/auth.py). New pairings issue none.
 message Heartbeat {
   string device_id = 1;
   string credential_token = 2;
   int64 sent_at_unix_ms = 3;
   string agent_version = 4;
+  // Ed25519 signature (base64) over "<device_id>|<sent_at_unix_ms>|<agent_version>"
+  // under the key whose public half HQ stored at pairing. Verified with a
+  // freshness window on sent_at so a captured frame cannot be replayed
+  // beyond it.
+  string sig_b64 = 5;
 }
 
 message TelemetryBatch {
@@ -57,6 +127,10 @@ message TelemetrySample {
   double value = 2;
   int64 recorded_at_unix_ms = 3;
   map<string, string> tags = 4;
+  // Unit and gauge/counter type carried through from the device's metric
+  // registration (Task.md C-08) so the metadata is not lost at the boundary.
+  string unit = 5;
+  string metric_type = 6;
 }
 
 message Location {
@@ -135,16 +209,41 @@ message ServerFrame {
     HeartbeatAck heartbeat_ack = 2;
     Command command = 3;
     SignedUploadUrl signed_upload_url = 4;
+    // HQ-signed configuration push (Task.md C-10): the payload travels on
+    // the frame and the device verifies it BEFORE applying, so tunnel
+    // compromise alone cannot reconfigure a device. Replaces the bare
+    // ApplyConfig notification, which stays in the oneof only for wire
+    // compatibility with older agents.
+    SignedConfig signed_config = 5;
   }
+}
+
+// Ed25519-signed configuration for one device daemon (C-10, C-02). The
+// device holds only HQ's PUBLIC key (delivered in PairingResult at pairing,
+// so the pairing token protects its provisioning), so a compromised device
+// cannot sign config for the fleet.
+message SignedConfig {
+  string daemon = 1;
+  string yaml = 2;
+  string key_id = 3;
+  // Ed25519 signature over "<daemon>|<yaml>" (64 bytes), matching the
+  // verify-before-apply path in Instrumentation's ConfigService.apply_signed.
+  bytes signature = 4;
 }
 
 message PairingResult {
   bool success = 1;
   string error = 2;
   string device_id = 3;
-  // Long-lived credential the device must store and use for all future
-  // connections. Only ever sent once, at successful pairing.
+  // Legacy bearer credential; empty for new pairings (C-02: the device
+  // authenticates with its own signing key instead).
   string credential_token = 4;
+  // HQ's Ed25519 config-signing public key (base64, 32 bytes raw) and the
+  // key id the device will see on SignedConfig frames. Delivered at pairing
+  // over the pairing-token-authenticated exchange, so the device learns it
+  // from HQ and never trusts a later unsigned claim.
+  string config_pubkey_b64 = 5;
+  string config_key_id = 6;
 }
 
 message HeartbeatAck {
@@ -170,9 +269,10 @@ message Reboot {}
 
 message Shutdown {}
 
-// Tells the device a config section changed in HQ; the device pulls the
-// section document via its next report/config sync (Arches-Configuration
-// owns the device-side application).
+// Tells the device a config section changed in HQ. LEGACY notification form,
+// superseded by SignedConfig (Task.md C-10): the signed push carries the
+// payload on the same frame. Retained in the oneof for wire compatibility;
+// the gateway no longer sends it.
 message ApplyConfig {
   string section = 1; // "system" | "time" | "network" | "security"
 }

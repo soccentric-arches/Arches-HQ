@@ -21,3 +21,8 @@ class TelemetrySample(Base, UUIDPKMixin):
     metric: Mapped[str] = mapped_column(index=True)
     value: Mapped[float] = mapped_column(Float)
     tags: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Metric metadata carried through from the device's registration (unit
+    # and gauge/counter type), so it is not lost at the device/HQ boundary
+    # (Task.md C-08). NULL for older agents that never sent it.
+    unit: Mapped[str | None] = mapped_column(nullable=True)
+    metric_type: Mapped[str | None] = mapped_column(nullable=True)

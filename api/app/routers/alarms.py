@@ -10,7 +10,7 @@ from app.db.deps import get_db
 from app.models.alarm import Alarm, AlarmRule
 from app.models.device import Device
 from app.models.device_alarm import DeviceAlarm
-from app.models.enums import AlarmState, UserRole
+from app.models.enums import AlarmState, FaultSeverity, UserRole
 from app.schemas.alarm import AlarmOut, AlarmRuleCreate, AlarmRuleOut
 from app.schemas.alarm_history import AlarmHistoryListOut
 from app.schemas.common import Page
@@ -22,6 +22,7 @@ from app.schemas.device_alarm import (
     DeviceAlarmOut,
 )
 from app.services import audit
+from app.services import alarms_catalog
 from app.services.device_scope import get_tenant_device_or_404
 from app.services.tenant_repo import TenantContext, TenantRepo
 
@@ -55,38 +56,14 @@ alarm_rules_router = APIRouter(prefix="/alarm-rules", tags=["alarms"])
 # byte boundaries fall inside the domain and module fields, so 0x10410007 came
 # out as (16, 65, 0, 7) instead of (1, 4, 1, 7). See Task.md C-03/C-04.
 
-_DOMAIN_SHIFT, _DOMAIN_MASK = 28, 0xF
-_MODULE_SHIFT, _MODULE_MASK = 20, 0xFF
-_TYPE_SHIFT, _TYPE_MASK = 16, 0xF
-_INDEX_MASK = 0xFFFF
+# Decode/encode moved to app/services/alarms_catalog.py (Task.md C-06/C-07):
+# the AlarmEvent ingest path in the gateway shares the same locked layout, and
+# the catalog loader (C-07) also lives there, so the router imports from it
+# rather than owning a second copy.
 
-
-def _decode_alarm_code(code: int) -> tuple[int, int, int, int]:
-    """Unpack a packed alarm code into ``(domain, module, alarm_type, index)``.
-
-    Severity is deliberately absent -- it travels as its own field, not inside
-    the code. See the layout note above.
-    """
-    return (
-        (code >> _DOMAIN_SHIFT) & _DOMAIN_MASK,
-        (code >> _MODULE_SHIFT) & _MODULE_MASK,
-        (code >> _TYPE_SHIFT) & _TYPE_MASK,
-        code & _INDEX_MASK,
-    )
-
-
-def _encode_alarm_code(domain: int, module: int, alarm_type: int, index: int) -> int:
-    """Pack ``(domain, module, alarm_type, index)`` back into a 32-bit code.
-
-    Present so the decode can be round-trip tested against the locked layout
-    rather than only spot-checked.
-    """
-    return (
-        ((domain & _DOMAIN_MASK) << _DOMAIN_SHIFT)
-        | ((module & _MODULE_MASK) << _MODULE_SHIFT)
-        | ((alarm_type & _TYPE_MASK) << _TYPE_SHIFT)
-        | (index & _INDEX_MASK)
-    )
+from app.services.alarms_catalog import (  # noqa: E402 -- kept beside the layout comment
+    decode_alarm_code as _decode_alarm_code,
+)
 
 
 @device_alarms_router.get("", response_model=DeviceAlarmListOut)
@@ -97,27 +74,53 @@ async def list_device_alarms(
     ),
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
+    include_hidden: bool = Query(
+        default=False, description="include catalog entries marked hq_reportable=false"
+    ),
     db: AsyncSession = Depends(get_db),
     ctx: TenantContext = Depends(require_role(UserRole.viewer)),
 ):
     """List device-reported alarms from the ``alarms`` table (R3).
 
     Returns rows for the tenant's device, newest first, with the decoded
-    4-byte alarm scheme fields.
+    4-byte alarm scheme fields and their catalog rendering fields (C-07).
+    Entries the catalog marks ``hq_reportable: false`` are device-internal
+    and are not surfaced as fleet alarms: they stay in the table but are
+    skipped here (pass ``include_hidden=true`` to see them for debugging).
     """
     await get_tenant_device_or_404(db, ctx, device_id)
 
     stmt = select(DeviceAlarm).where(DeviceAlarm.device_id == device_id)
     if since:
         stmt = stmt.where(DeviceAlarm.triggered_at >= since)
+    if not include_hidden:
+        stmt = stmt.where(DeviceAlarm.alarm_code.notin_(_not_reportable_codes()))
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
     stmt = stmt.order_by(DeviceAlarm.triggered_at.desc()).limit(limit).offset(offset)
     rows = (await db.execute(stmt)).scalars().all()
 
     return DeviceAlarmListOut(
-        items=[DeviceAlarmOut.model_validate(r) for r in rows],
+        items=[_render_device_alarm(r) for r in rows],
         page=Page(total=total, limit=limit, offset=offset),
     )
+
+
+def _not_reportable_codes() -> list[int]:
+    """Catalog entries marked ``hq_reportable: false`` (Task.md C-07).
+
+    Held in a plain list rather than a SQL IN from a query per row; the
+    catalog is small (tens of entries) and cached.
+    """
+    return [
+        code for code, entry in alarms_catalog.load_catalog().items() if not entry.hq_reportable
+    ]
+
+
+def _render_device_alarm(row: DeviceAlarm) -> DeviceAlarmOut:
+    """Row -> output model, with the catalog joined at render time (C-07)."""
+    out = DeviceAlarmOut.model_validate(row)
+    out.catalog = alarms_catalog.enrich(row.alarm_code)
+    return out
 
 
 @device_alarms_router.post(
@@ -155,13 +158,25 @@ async def ingest_device_alarm(
 
     domain, module, alarm_type, alarm_index = _decode_alarm_code(code)
 
+    # Severity omitted -> default from the vendored catalog (Task.md C-07):
+    # the catalog carries each entry's default X.733 severity, so an operator
+    # ingest without one still lands on the catalog's answer instead of a
+    # hardcoded warning.
+    severity = body.severity
+    if "severity" not in body.model_fields_set:
+        entry = alarms_catalog.lookup(code)
+        try:
+            severity = FaultSeverity(entry.severity.lower()) if entry else FaultSeverity.warning
+        except ValueError:
+            severity = FaultSeverity.warning
+
     alarm = DeviceAlarm(
         device_id=device_id,
         domain=domain,
         module=module,
         alarm_type=alarm_type,
         alarm_index=alarm_index,
-        severity=body.severity,
+        severity=severity,
         alarm_code=code,
         state=AlarmState.active,
         triggered_at=body.triggered_at,
@@ -248,6 +263,8 @@ async def list_active_alarms(
         )
     ).scalar_one()
 
+    # hq_reportable=false entries are device-internal (C-07): excluded from
+    # the fleet surface, so the bell/overview counts match the list pages.
     items = [
         ActiveAlarmOut(
             id=a.id,
@@ -261,8 +278,15 @@ async def list_active_alarms(
             alarm_code=a.alarm_code,
             state=a.state,
             triggered_at=a.triggered_at,
+            name=(
+                alarms_catalog.lookup(a.alarm_code).name
+                if alarms_catalog.lookup(a.alarm_code)
+                else ""
+            ),
+            correlated=list(a.correlated) if a.correlated else [],
         )
         for a, name in rows
+        if alarms_catalog.reportable(a.alarm_code)
     ]
     return ActiveAlarmListOut(count=total, items=items)
 

@@ -29,9 +29,22 @@ export interface Device {
   sw_version?: string | null
   // From the heartbeat frame; null until first connect.
   agent_version?: string | null
+  // Ed25519 public key HQ bound at pairing (C-02); null for legacy devices.
+  agent_pubkey?: string | null
+  // Device health score 0..1 and per-spoke status summary (F-05), promoted
+  // from the AgentReport document HQ stores verbatim.
+  health_score?: number | null
+  spoke_status?: SpokeStatus[] | Record<string, unknown> | null
   // AgentReport state dump: hardware inventory, services, network status.
   reported?: Record<string, unknown> | null
   created_at: string
+}
+
+export interface SpokeStatus {
+  name: string
+  state: string
+  live?: boolean
+  restarts?: number
 }
 
 export type ConfigSection = 'system' | 'time' | 'network' | 'security'
@@ -133,11 +146,27 @@ export interface DeviceAlarm {
   state: AlarmState
   triggered_at: string
   resolved_at: string | null
+  // AlarmEvent transport fields (Task.md C-06).
+  owner?: string | null
+  additional_text?: string | null
+  count?: number | null
+  acknowledged?: boolean
+  needs_snapshot?: boolean
+  first_seen_at?: string | null
+  last_seen_at?: string | null
+  correlated?: number[] | null
+  // Catalog rendering fields joined at the API (Task.md C-07).
+  catalog?: AlarmCatalogEntry
 }
 
-export interface DeviceAlarmListResponse {
-  items: DeviceAlarm[]
-  page: Page
+export interface AlarmCatalogEntry {
+  name: string
+  probable_cause: string
+  specific_problem: string
+  description: string
+  escalation: string
+  auto_clear: string
+  hq_reportable: boolean
 }
 
 export interface ActiveAlarm {
@@ -152,6 +181,10 @@ export interface ActiveAlarm {
   alarm_code: number
   state: 'active' | 'acknowledged' | 'resolved'
   triggered_at: string
+  // Catalog symbolic name (C-07); empty for unknown codes.
+  name?: string
+  // X.733 correlated notification ids (C-06/F-08) for timeline grouping.
+  correlated?: number[] | null
 }
 
 export interface ActiveAlarmListResponse {

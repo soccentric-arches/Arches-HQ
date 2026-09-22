@@ -70,6 +70,11 @@ function alarmCodeHex(code: number) {
   return `0x${code.toString(16).padStart(8, '0')}`
 }
 
+// X.733 correlated ids of one alarm, as display text (F-08 timeline detail).
+function correlatedText(a: DeviceAlarm) {
+  return (a.correlated ?? []).map((c) => alarmCodeHex(c)).join(', ')
+}
+
 async function load(silent = false) {
   if (!silent) loading.value = true
   error.value = ''
@@ -162,23 +167,28 @@ onUnmounted(() => {
       <thead class="border-b border-border bg-surface-muted text-xs uppercase text-muted-foreground">
         <tr>
           <th class="px-4 py-2 font-medium">Code</th>
-          <th class="px-4 py-2 font-medium">Domain</th>
-          <th class="px-4 py-2 font-medium">Module</th>
-          <th class="px-4 py-2 font-medium">Type</th>
-          <th class="px-4 py-2 font-medium">Index</th>
+          <th class="px-4 py-2 font-medium">Alarm</th>
           <th class="px-4 py-2 font-medium">Severity</th>
           <th class="px-4 py-2 font-medium">State</th>
-          <th class="px-4 py-2 font-medium">Triggered</th>
+          <th class="px-4 py-2 font-medium">Seen</th>
           <th class="px-4 py-2 font-medium"></th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="a in alarms" :key="a.id" class="border-b border-border last:border-0">
           <td class="px-4 py-2 font-mono text-xs">{{ alarmCodeHex(a.alarm_code) }}</td>
-          <td class="px-4 py-2">{{ a.domain }}</td>
-          <td class="px-4 py-2">{{ a.module }}</td>
-          <td class="px-4 py-2">{{ a.alarm_type }}</td>
-          <td class="px-4 py-2">{{ a.alarm_index }}</td>
+          <td class="px-4 py-2 text-xs">
+            <!-- Symbolic name + description from the vendored catalog (C-07); the
+                 numeric decode stays visible for round-trip checking. -->
+            <span class="font-medium">{{ a.catalog?.name || `domain ${a.domain} / module ${a.module}` }}</span>
+            <p v-if="a.catalog?.description" class="max-w-xs truncate text-muted-foreground" :title="a.catalog.description">
+              {{ a.catalog.description }}
+            </p>
+            <p v-if="a.owner" class="text-[10px] text-muted-foreground">owner: {{ a.owner }}</p>
+            <p v-if="(a.correlated ?? []).length" class="text-[10px] text-muted-foreground">
+              correlated: {{ correlatedText(a) }}
+            </p>
+          </td>
           <td class="px-4 py-2">
             <Badge :tone="severityTone(a.severity)" class="capitalize">{{ a.severity }}</Badge>
           </td>

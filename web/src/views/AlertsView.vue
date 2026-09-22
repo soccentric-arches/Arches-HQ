@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { RefreshCw } from 'lucide-vue-next'
 import { api, ApiError } from '@/lib/api'
@@ -29,6 +29,72 @@ const ackError = ref('')
 
 function alarmHex(code: number) {
   return `0x${code.toString(16).padStart(8, '0')}`
+}
+
+// ---- Correlated alarm timeline (Task.md F-08) --------------------------------
+// X.733 escalation chains: alarms whose `correlated` arrays reference each
+// other render as ONE group instead of N flat rows. An alarm joins a group
+// when its own code appears in another alarm's correlated list, or it lists
+// another displayed alarm's code. Group label is the highest-severity member
+// plus the escalation rule of its catalog entry, when the code is catalogued.
+interface CorrelationGroup {
+  codes: number[]
+  members: ActiveAlarm[]
+}
+
+const SEVERITY_RANK: Record<string, number> = { info: 0, warning: 1, minor: 2, major: 3, critical: 4 }
+
+const correlationGroups = computed(() => {
+  const byCode = new Map<number, ActiveAlarm>()
+  for (const a of alarms.value) byCode.set(a.alarm_code, a)
+
+  const union = new Map<ActiveAlarm, Set<ActiveAlarm>>()
+  const find = (x: ActiveAlarm): Set<ActiveAlarm> => {
+    let s = union.get(x)
+    if (!s) {
+      s = new Set([x])
+      union.set(x, s)
+    }
+    return s
+  }
+  const join = (a: ActiveAlarm, b: ActiveAlarm) => {
+    const sa = find(a)
+    const sb = find(b)
+    for (const m of sb) sa.add(m)
+    for (const m of sa) union.set(m, sa)
+  }
+  for (const a of alarms.value) {
+    for (const c of a.correlated ?? []) {
+      const peer = byCode.get(c)
+      if (peer && peer !== a) join(a, peer)
+    }
+  }
+
+  const seen = new Set<ActiveAlarm>()
+  const groups: CorrelationGroup[] = []
+  for (const a of alarms.value) {
+    if (seen.has(a)) continue
+    const members = [...find(a)]
+    if (members.length < 2) continue
+    for (const m of members) seen.add(m)
+    groups.push({
+      codes: members.map((m) => m.alarm_code),
+      members: members.sort(
+        (x, y) => (SEVERITY_RANK[y.severity] ?? 0) - (SEVERITY_RANK[x.severity] ?? 0)
+      ),
+    })
+  }
+  return groups
+})
+
+const soloAlarms = computed(() => alarms.value.filter((a) => !correlationGroups.value.some((g) => g.members.includes(a))))
+
+function groupHeadline(g: CorrelationGroup) {
+  const head = g.members[0]
+  const label = head.name || alarmHex(head.alarm_code)
+  return g.members.length === 2
+    ? `${label} + 1 correlated alarm`
+    : `${label} + ${g.members.length - 1} correlated alarms`
 }
 
 function alarmTone(state: string) {
@@ -139,21 +205,43 @@ onUnmounted(() => {
           No active alarms across the fleet.
         </Card>
         <template v-else>
+          <!-- Correlated chains first (Task.md F-08): an escalation chain is
+               one story, not N rows. -->
+          <div v-for="g in correlationGroups" :key="g.codes.join('-')" class="mb-4">
+            <Card class="p-4">
+              <div class="mb-2 flex items-center gap-2">
+                <Badge tone="danger">escalation chain</Badge>
+                <span class="text-sm font-medium">{{ groupHeadline(g) }}</span>
+              </div>
+              <ul class="divide-y divide-border">
+                <li
+                  v-for="m in g.members"
+                  :key="m.id"
+                  class="flex items-center justify-between gap-4 py-1.5 text-sm"
+                >
+                  <span class="flex min-w-0 items-center gap-2">
+                    <Badge :tone="severityTone(m.severity)" class="capitalize">{{ m.severity }}</Badge>
+                    <span class="truncate font-mono text-xs">{{ m.name || alarmHex(m.alarm_code) }}</span>
+                    <span class="truncate text-xs text-muted-foreground">on {{ m.device_name }}</span>
+                  </span>
+                  <span class="text-xs text-muted-foreground">{{ new Date(m.triggered_at).toLocaleString() }}</span>
+                </li>
+              </ul>
+            </Card>
+          </div>
+
           <Table>
             <thead class="border-b border-border bg-surface-muted text-xs uppercase text-muted-foreground">
               <tr>
                 <th class="px-4 py-2 font-medium">Device</th>
+                <th class="px-4 py-2 font-medium">Alarm</th>
                 <th class="px-4 py-2 font-medium">Code</th>
-                <th class="px-4 py-2 font-medium">Domain</th>
-                <th class="px-4 py-2 font-medium">Module</th>
-                <th class="px-4 py-2 font-medium">Type</th>
-                <th class="px-4 py-2 font-medium">Index</th>
                 <th class="px-4 py-2 font-medium">Severity</th>
                 <th class="px-4 py-2 font-medium">Triggered</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="a in alarms" :key="a.id" class="border-b border-border last:border-0">
+              <tr v-for="a in soloAlarms" :key="a.id" class="border-b border-border last:border-0">
                 <td class="px-4 py-2">
                   <RouterLink
                     :to="{ name: 'device-detail', params: { id: a.device_id }, query: { section: 'alarms' } }"
@@ -162,11 +250,8 @@ onUnmounted(() => {
                     {{ a.device_name }}
                   </RouterLink>
                 </td>
+                <td class="px-4 py-2 text-xs">{{ a.name || '—' }}</td>
                 <td class="px-4 py-2 font-mono text-xs">{{ alarmHex(a.alarm_code) }}</td>
-                <td class="px-4 py-2">{{ a.domain }}</td>
-                <td class="px-4 py-2">{{ a.module }}</td>
-                <td class="px-4 py-2">{{ a.alarm_type }}</td>
-                <td class="px-4 py-2">{{ a.alarm_index }}</td>
                 <td class="px-4 py-2">
                   <Badge :tone="severityTone(a.severity)" class="capitalize">{{ a.severity }}</Badge>
                 </td>

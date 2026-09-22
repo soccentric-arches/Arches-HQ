@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Enum, ForeignKey, Integer, SmallInteger
+from sqlalchemy import BigInteger, Enum, ForeignKey, Integer, JSON, SmallInteger
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, Guid, TimestampTZ
@@ -67,3 +67,22 @@ class DeviceAlarm(Base, UUIDPKMixin):
     )
     triggered_at: Mapped[datetime] = mapped_column(TimestampTZ)
     resolved_at: Mapped[datetime | None] = mapped_column(TimestampTZ, nullable=True)
+
+    # ---- AlarmEvent transport fields (Task.md C-06) -------------------------
+    # The declaring application (Instrumentation R5: only an application
+    # declares or clears an alarm; the device's alarms daemon relays on its
+    # behalf). "istate" itself for alarms the hub raises.
+    owner: Mapped[str | None] = mapped_column(nullable=True)
+    additional_text: Mapped[str | None] = mapped_column(nullable=True)
+    # Aggregation state the device already computed, so HQ stores the same
+    # fact the device holds instead of recounting occurrences.
+    count: Mapped[int | None] = mapped_column(nullable=True)
+    acknowledged: Mapped[bool] = mapped_column(default=False, index=True)
+    # Set on a CRITICAL raise: the device captured a bounded diagnostic
+    # snapshot at the moment it mattered.
+    needs_snapshot: Mapped[bool] = mapped_column(default=False)
+    first_seen_at: Mapped[datetime | None] = mapped_column(TimestampTZ, nullable=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(TimestampTZ, nullable=True)
+    # X.733 correlated notification ids (catalog escalation chains), as a
+    # JSON list of packed alarm codes.
+    correlated: Mapped[list | None] = mapped_column(JSON, nullable=True)

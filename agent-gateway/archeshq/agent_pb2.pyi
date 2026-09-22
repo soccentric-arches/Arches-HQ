@@ -8,7 +8,7 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class AgentFrame(_message.Message):
-    __slots__ = ("pairing_handshake", "heartbeat", "telemetry_batch", "fault_event", "log_upload_request", "command_ack", "agent_report")
+    __slots__ = ("pairing_handshake", "heartbeat", "telemetry_batch", "fault_event", "log_upload_request", "command_ack", "agent_report", "alarm_event", "backup_status")
     PAIRING_HANDSHAKE_FIELD_NUMBER: _ClassVar[int]
     HEARTBEAT_FIELD_NUMBER: _ClassVar[int]
     TELEMETRY_BATCH_FIELD_NUMBER: _ClassVar[int]
@@ -16,6 +16,8 @@ class AgentFrame(_message.Message):
     LOG_UPLOAD_REQUEST_FIELD_NUMBER: _ClassVar[int]
     COMMAND_ACK_FIELD_NUMBER: _ClassVar[int]
     AGENT_REPORT_FIELD_NUMBER: _ClassVar[int]
+    ALARM_EVENT_FIELD_NUMBER: _ClassVar[int]
+    BACKUP_STATUS_FIELD_NUMBER: _ClassVar[int]
     pairing_handshake: PairingHandshake
     heartbeat: Heartbeat
     telemetry_batch: TelemetryBatch
@@ -23,25 +25,83 @@ class AgentFrame(_message.Message):
     log_upload_request: LogUploadRequest
     command_ack: CommandAck
     agent_report: AgentReport
-    def __init__(self, pairing_handshake: _Optional[_Union[PairingHandshake, _Mapping]] = ..., heartbeat: _Optional[_Union[Heartbeat, _Mapping]] = ..., telemetry_batch: _Optional[_Union[TelemetryBatch, _Mapping]] = ..., fault_event: _Optional[_Union[FaultEvent, _Mapping]] = ..., log_upload_request: _Optional[_Union[LogUploadRequest, _Mapping]] = ..., command_ack: _Optional[_Union[CommandAck, _Mapping]] = ..., agent_report: _Optional[_Union[AgentReport, _Mapping]] = ...) -> None: ...
+    alarm_event: AlarmEvent
+    backup_status: BackupStatus
+    def __init__(self, pairing_handshake: _Optional[_Union[PairingHandshake, _Mapping]] = ..., heartbeat: _Optional[_Union[Heartbeat, _Mapping]] = ..., telemetry_batch: _Optional[_Union[TelemetryBatch, _Mapping]] = ..., fault_event: _Optional[_Union[FaultEvent, _Mapping]] = ..., log_upload_request: _Optional[_Union[LogUploadRequest, _Mapping]] = ..., command_ack: _Optional[_Union[CommandAck, _Mapping]] = ..., agent_report: _Optional[_Union[AgentReport, _Mapping]] = ..., alarm_event: _Optional[_Union[AlarmEvent, _Mapping]] = ..., backup_status: _Optional[_Union[BackupStatus, _Mapping]] = ...) -> None: ...
+
+class AlarmEvent(_message.Message):
+    __slots__ = ("alarm_id", "action", "severity", "owner", "additional_text", "count", "acknowledged", "needs_snapshot", "first_seen_unix_ms", "last_seen_unix_ms", "correlated")
+    class Action(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        RAISE: _ClassVar[AlarmEvent.Action]
+        CLEAR: _ClassVar[AlarmEvent.Action]
+        ACK: _ClassVar[AlarmEvent.Action]
+        SEVERITY_CHANGE: _ClassVar[AlarmEvent.Action]
+    RAISE: AlarmEvent.Action
+    CLEAR: AlarmEvent.Action
+    ACK: AlarmEvent.Action
+    SEVERITY_CHANGE: AlarmEvent.Action
+    ALARM_ID_FIELD_NUMBER: _ClassVar[int]
+    ACTION_FIELD_NUMBER: _ClassVar[int]
+    SEVERITY_FIELD_NUMBER: _ClassVar[int]
+    OWNER_FIELD_NUMBER: _ClassVar[int]
+    ADDITIONAL_TEXT_FIELD_NUMBER: _ClassVar[int]
+    COUNT_FIELD_NUMBER: _ClassVar[int]
+    ACKNOWLEDGED_FIELD_NUMBER: _ClassVar[int]
+    NEEDS_SNAPSHOT_FIELD_NUMBER: _ClassVar[int]
+    FIRST_SEEN_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    LAST_SEEN_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    CORRELATED_FIELD_NUMBER: _ClassVar[int]
+    alarm_id: int
+    action: AlarmEvent.Action
+    severity: FaultEvent.Severity
+    owner: str
+    additional_text: str
+    count: int
+    acknowledged: bool
+    needs_snapshot: bool
+    first_seen_unix_ms: int
+    last_seen_unix_ms: int
+    correlated: _containers.RepeatedScalarFieldContainer[int]
+    def __init__(self, alarm_id: _Optional[int] = ..., action: _Optional[_Union[AlarmEvent.Action, str]] = ..., severity: _Optional[_Union[FaultEvent.Severity, str]] = ..., owner: _Optional[str] = ..., additional_text: _Optional[str] = ..., count: _Optional[int] = ..., acknowledged: _Optional[bool] = ..., needs_snapshot: _Optional[bool] = ..., first_seen_unix_ms: _Optional[int] = ..., last_seen_unix_ms: _Optional[int] = ..., correlated: _Optional[_Iterable[int]] = ...) -> None: ...
+
+class BackupStatus(_message.Message):
+    __slots__ = ("name", "size_bytes", "created_at_unix_ms", "checksum_sha256", "success", "error")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    CREATED_AT_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    CHECKSUM_SHA256_FIELD_NUMBER: _ClassVar[int]
+    SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    ERROR_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    size_bytes: int
+    created_at_unix_ms: int
+    checksum_sha256: str
+    success: bool
+    error: str
+    def __init__(self, name: _Optional[str] = ..., size_bytes: _Optional[int] = ..., created_at_unix_ms: _Optional[int] = ..., checksum_sha256: _Optional[str] = ..., success: _Optional[bool] = ..., error: _Optional[str] = ...) -> None: ...
 
 class PairingHandshake(_message.Message):
-    __slots__ = ("pairing_token",)
+    __slots__ = ("pairing_token", "pubkey_b64")
     PAIRING_TOKEN_FIELD_NUMBER: _ClassVar[int]
+    PUBKEY_B64_FIELD_NUMBER: _ClassVar[int]
     pairing_token: str
-    def __init__(self, pairing_token: _Optional[str] = ...) -> None: ...
+    pubkey_b64: str
+    def __init__(self, pairing_token: _Optional[str] = ..., pubkey_b64: _Optional[str] = ...) -> None: ...
 
 class Heartbeat(_message.Message):
-    __slots__ = ("device_id", "credential_token", "sent_at_unix_ms", "agent_version")
+    __slots__ = ("device_id", "credential_token", "sent_at_unix_ms", "agent_version", "sig_b64")
     DEVICE_ID_FIELD_NUMBER: _ClassVar[int]
     CREDENTIAL_TOKEN_FIELD_NUMBER: _ClassVar[int]
     SENT_AT_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
     AGENT_VERSION_FIELD_NUMBER: _ClassVar[int]
+    SIG_B64_FIELD_NUMBER: _ClassVar[int]
     device_id: str
     credential_token: str
     sent_at_unix_ms: int
     agent_version: str
-    def __init__(self, device_id: _Optional[str] = ..., credential_token: _Optional[str] = ..., sent_at_unix_ms: _Optional[int] = ..., agent_version: _Optional[str] = ...) -> None: ...
+    sig_b64: str
+    def __init__(self, device_id: _Optional[str] = ..., credential_token: _Optional[str] = ..., sent_at_unix_ms: _Optional[int] = ..., agent_version: _Optional[str] = ..., sig_b64: _Optional[str] = ...) -> None: ...
 
 class TelemetryBatch(_message.Message):
     __slots__ = ("samples", "location")
@@ -52,7 +112,7 @@ class TelemetryBatch(_message.Message):
     def __init__(self, samples: _Optional[_Iterable[_Union[TelemetrySample, _Mapping]]] = ..., location: _Optional[_Union[Location, _Mapping]] = ...) -> None: ...
 
 class TelemetrySample(_message.Message):
-    __slots__ = ("metric", "value", "recorded_at_unix_ms", "tags")
+    __slots__ = ("metric", "value", "recorded_at_unix_ms", "tags", "unit", "metric_type")
     class TagsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -64,11 +124,15 @@ class TelemetrySample(_message.Message):
     VALUE_FIELD_NUMBER: _ClassVar[int]
     RECORDED_AT_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
     TAGS_FIELD_NUMBER: _ClassVar[int]
+    UNIT_FIELD_NUMBER: _ClassVar[int]
+    METRIC_TYPE_FIELD_NUMBER: _ClassVar[int]
     metric: str
     value: float
     recorded_at_unix_ms: int
     tags: _containers.ScalarMap[str, str]
-    def __init__(self, metric: _Optional[str] = ..., value: _Optional[float] = ..., recorded_at_unix_ms: _Optional[int] = ..., tags: _Optional[_Mapping[str, str]] = ...) -> None: ...
+    unit: str
+    metric_type: str
+    def __init__(self, metric: _Optional[str] = ..., value: _Optional[float] = ..., recorded_at_unix_ms: _Optional[int] = ..., tags: _Optional[_Mapping[str, str]] = ..., unit: _Optional[str] = ..., metric_type: _Optional[str] = ...) -> None: ...
 
 class Location(_message.Message):
     __slots__ = ("lat", "lon", "accuracy_m", "source", "recorded_at_unix_ms")
@@ -161,28 +225,46 @@ class AgentReport(_message.Message):
     def __init__(self, report_json: _Optional[str] = ...) -> None: ...
 
 class ServerFrame(_message.Message):
-    __slots__ = ("pairing_result", "heartbeat_ack", "command", "signed_upload_url")
+    __slots__ = ("pairing_result", "heartbeat_ack", "command", "signed_upload_url", "signed_config")
     PAIRING_RESULT_FIELD_NUMBER: _ClassVar[int]
     HEARTBEAT_ACK_FIELD_NUMBER: _ClassVar[int]
     COMMAND_FIELD_NUMBER: _ClassVar[int]
     SIGNED_UPLOAD_URL_FIELD_NUMBER: _ClassVar[int]
+    SIGNED_CONFIG_FIELD_NUMBER: _ClassVar[int]
     pairing_result: PairingResult
     heartbeat_ack: HeartbeatAck
     command: Command
     signed_upload_url: SignedUploadUrl
-    def __init__(self, pairing_result: _Optional[_Union[PairingResult, _Mapping]] = ..., heartbeat_ack: _Optional[_Union[HeartbeatAck, _Mapping]] = ..., command: _Optional[_Union[Command, _Mapping]] = ..., signed_upload_url: _Optional[_Union[SignedUploadUrl, _Mapping]] = ...) -> None: ...
+    signed_config: SignedConfig
+    def __init__(self, pairing_result: _Optional[_Union[PairingResult, _Mapping]] = ..., heartbeat_ack: _Optional[_Union[HeartbeatAck, _Mapping]] = ..., command: _Optional[_Union[Command, _Mapping]] = ..., signed_upload_url: _Optional[_Union[SignedUploadUrl, _Mapping]] = ..., signed_config: _Optional[_Union[SignedConfig, _Mapping]] = ...) -> None: ...
+
+class SignedConfig(_message.Message):
+    __slots__ = ("daemon", "yaml", "key_id", "signature")
+    DAEMON_FIELD_NUMBER: _ClassVar[int]
+    YAML_FIELD_NUMBER: _ClassVar[int]
+    KEY_ID_FIELD_NUMBER: _ClassVar[int]
+    SIGNATURE_FIELD_NUMBER: _ClassVar[int]
+    daemon: str
+    yaml: str
+    key_id: str
+    signature: bytes
+    def __init__(self, daemon: _Optional[str] = ..., yaml: _Optional[str] = ..., key_id: _Optional[str] = ..., signature: _Optional[bytes] = ...) -> None: ...
 
 class PairingResult(_message.Message):
-    __slots__ = ("success", "error", "device_id", "credential_token")
+    __slots__ = ("success", "error", "device_id", "credential_token", "config_pubkey_b64", "config_key_id")
     SUCCESS_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     DEVICE_ID_FIELD_NUMBER: _ClassVar[int]
     CREDENTIAL_TOKEN_FIELD_NUMBER: _ClassVar[int]
+    CONFIG_PUBKEY_B64_FIELD_NUMBER: _ClassVar[int]
+    CONFIG_KEY_ID_FIELD_NUMBER: _ClassVar[int]
     success: bool
     error: str
     device_id: str
     credential_token: str
-    def __init__(self, success: _Optional[bool] = ..., error: _Optional[str] = ..., device_id: _Optional[str] = ..., credential_token: _Optional[str] = ...) -> None: ...
+    config_pubkey_b64: str
+    config_key_id: str
+    def __init__(self, success: _Optional[bool] = ..., error: _Optional[str] = ..., device_id: _Optional[str] = ..., credential_token: _Optional[str] = ..., config_pubkey_b64: _Optional[str] = ..., config_key_id: _Optional[str] = ...) -> None: ...
 
 class HeartbeatAck(_message.Message):
     __slots__ = ("server_time_unix_ms", "next_heartbeat_interval_s")

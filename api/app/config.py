@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # artifact staging. Docker bind-mounts it from ./storage.
     storage_dir: str = str(_REPO_ROOT / "storage")
 
+    # Fleet config-signing key seed (Task.md C-10): base64 of the 32 raw
+    # bytes of the Ed25519 private key that signs SignedConfig pushes.
+    # MUST be set in production; unset, the key is generated and persisted
+    # under storage/ (fine for development and tests, not a secret store).
+    config_signing_key: str = ""
+
     # Presence / heartbeat.
     heartbeat_interval_s: int = 30
     heartbeat_missed_threshold: int = 2  # offline after N missed intervals
